@@ -1,2 +1,4 @@
 main.tf
 .terraform
+.env
+node_modules
