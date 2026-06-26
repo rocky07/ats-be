@@ -13,3 +13,11 @@ export const addRequirement = (requirement) => {
     db.write();
     return newRequirement;
 }
+
+export const updateRequirement = (id, updates) => {
+    const index = db.data.requirements.findIndex((r) => r.id === id);
+    if (index === -1) return null;
+    db.data.requirements[index] = { ...db.data.requirements[index], ...updates };
+    db.write();
+    return db.data.requirements[index];
+}

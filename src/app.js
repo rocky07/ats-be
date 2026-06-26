@@ -6,6 +6,7 @@ import requirementsRouter from './routes/requirements.js';
 import candidatesRouter from './routes/candidates.js';
 import pipelinesRouter from './routes/pipelines.js';
 import intelligenceRouter from './routes/intelligence.js';
+import examsRouter from './routes/exams.js';
 
 const app = express();
 
@@ -18,5 +19,6 @@ app.use('/api/requirements', requirementsRouter);
 app.use('/api/candidates', candidatesRouter);
 app.use('/api/pipelines', pipelinesRouter);
 app.use('/api/intelligence', intelligenceRouter);
+app.use('/api/exams', examsRouter);
 
 export default app;
