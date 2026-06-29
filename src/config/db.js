@@ -25,8 +25,42 @@ const defaultData = {
     
   ],
   candidates: [],
+  departments: [
+    { id: 'dept-1', name: 'Engineering' },
+    { id: 'dept-2', name: 'Product Management' },
+    { id: 'dept-3', name: 'Data Analytics' },
+    { id: 'dept-4', name: 'Quality Assurance' },
+    { id: 'dept-5', name: 'Design' },
+    { id: 'dept-6', name: 'Operations' },
+    { id: 'dept-7', name: 'Human Resources' },
+    { id: 'dept-8', name: 'Sales' },
+    { id: 'dept-9', name: 'Finance' },
+  ],
   pipelines: [],
-  dashboardStats: { totalInterviews: 0, offersExtended: 0 }
+  dashboardStats: { totalInterviews: 0, offersExtended: 0 },
+  panelMembers: [
+    { id: 'panel-1', name: 'Sarah Johnson', email: 'sarah.johnson@bourntec.com', role: 'Tech Lead', departments: ['Engineering'], regions: ['global'] },
+    { id: 'panel-2', name: 'Mike Chen', email: 'mike.chen@bourntec.com', role: 'Senior Engineer', departments: ['Engineering', 'Product Management'], regions: ['us', 'india'] },
+    { id: 'panel-3', name: 'Priya Patel', email: 'priya.patel@bourntec.com', role: 'HR Manager', departments: ['Human Resources'], regions: ['global'] },
+  ],
+  interviews: [],
+  users: [],
+  systemSettings: {
+    companyName: 'Bourntec ATS',
+    defaultTimezone: 'America/New_York',
+    anthropicApiKey: '',
+    smtp: { host: '', port: 587, user: '', pass: '', from: '' },
+    msGraph: { tenantId: '', clientId: '', clientSecret: '', organizerEmail: '' },
+    cognito: { userPoolId: '', clientId: '', region: 'us-east-1' },
+    jobBoards: {
+      linkedinCompany: { enabled: false, accessToken: '', organizationId: '', autoPost: false },
+      linkedinJobs: { enabled: false, clientId: '', clientSecret: '', organizationId: '', autoPost: false },
+      monster: { enabled: false, apiToken: '', autoPost: false },
+      naukri: { enabled: false, apiToken: '', username: '', password: '', autoPost: false },
+      indeed: { enabled: false, publisherId: '', apiKey: '', autoPost: false },
+    },
+  },
+  userSettings: []
 };
 
 const adapter = new JSONFile(file);
