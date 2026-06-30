@@ -60,7 +60,15 @@ const defaultData = {
       indeed: { enabled: false, publisherId: '', apiKey: '', autoPost: false },
     },
   },
-  userSettings: []
+  userSettings: [],
+  vendors: [
+    { id: 'v-1', name: 'John Carter', email: 'john.carter@techstaff.com', phone: '', company: 'TechStaff Solutions', status: 'Active', group: 'IT Recruiters' },
+    { id: 'v-2', name: 'Aisha Rahman', email: 'aisha@globalhire.com', phone: '', company: 'GlobalHire Inc.', status: 'Active', group: 'Preferred Partners' },
+    { id: 'v-3', name: 'Miguel Santos', email: 'miguel.santos@nexustalent.com', phone: '', company: 'Nexus Talent', status: 'Pending', group: 'IT Recruiters' },
+    { id: 'v-4', name: 'Wei Chen', email: 'wei.chen@brightpath.io', phone: '', company: 'BrightPath Consulting', status: 'Inactive', group: 'Logistics' },
+    { id: 'v-5', name: 'Olivia Brown', email: 'olivia.brown@apexvendors.com', phone: '', company: 'Apex Vendors', status: 'Active', group: 'Preferred Partners' },
+  ],
+  vendorGroups: ['Preferred Partners', 'IT Recruiters', 'Logistics'],
 };
 
 const adapter = new JSONFile(file);

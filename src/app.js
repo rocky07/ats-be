@@ -10,6 +10,8 @@ import pipelinesRouter from './routes/pipelines.js';
 import intelligenceRouter from './routes/intelligence.js';
 import examsRouter from './routes/exams.js';
 import interviewsRouter from './routes/interviews.js';
+import vendorsRouter from './routes/vendors.js';
+import dashboardRouter from './routes/dashboard.js';
 
 const app = express();
 
@@ -30,5 +32,7 @@ app.use('/api/pipelines', pipelinesRouter);
 app.use('/api/intelligence', intelligenceRouter);
 app.use('/api/exams', examsRouter);
 app.use('/api/interviews', interviewsRouter);
+app.use('/api/vendors', vendorsRouter);
+app.use('/api/dashboard', dashboardRouter);
 
 export default app;
