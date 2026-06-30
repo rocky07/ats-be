@@ -6,7 +6,9 @@ import {
   listUsers,
   findUserById,
 } from '../services/authService.js';
-import { getUserSettings } from '../services/settingsService.js';
+import { getUserSettings, updateUserSettings } from '../services/settingsService.js';
+import { buildAuthUrl, exchangeCode, getMemberProfile, FRONTEND_URL } from '../services/linkedinService.js';
+import crypto from 'crypto';
 
 const COGNITO_CONFIGURED = !!(process.env.COGNITO_USER_POOL_ID && process.env.COGNITO_CLIENT_ID);
 
@@ -66,6 +68,75 @@ export const me = (req, res) => {
 export const getUsers = (req, res) => {
   if (req.user?.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
   res.json(listUsers());
+};
+
+// ── LinkedIn OAuth ─────────────────────────────────────────────────────────────
+
+// In-memory state store for CSRF protection (fine for single-process dev server)
+const oauthStates = new Map(); // state → { userId, expiresAt }
+
+// GET /api/auth/linkedin  — requires auth (token from ?token= query param or Authorization header)
+export const linkedinConnect = (req, res) => {
+  if (!process.env.LINKEDIN_CLIENT_ID) {
+    return res.status(400).json({ error: 'LinkedIn client ID not configured' });
+  }
+  const state = crypto.randomBytes(16).toString('hex');
+  oauthStates.set(state, { userId: req.user.id, expiresAt: Date.now() + 10 * 60 * 1000 });
+  res.redirect(buildAuthUrl(state));
+};
+
+// GET /api/auth/linkedin/callback  — LinkedIn redirects here after consent
+export const linkedinCallback = async (req, res) => {
+  const { code, state, error } = req.query;
+
+  if (error) {
+    return res.redirect(`${FRONTEND_URL}/settings?linkedin=denied`);
+  }
+
+  const stateData = oauthStates.get(state);
+  if (!stateData || Date.now() > stateData.expiresAt) {
+    return res.redirect(`${FRONTEND_URL}/settings?linkedin=error&reason=state`);
+  }
+  oauthStates.delete(state);
+
+  try {
+    const tokens = await exchangeCode(code);
+    const profile = await getMemberProfile(tokens.access_token);
+
+    // Store token + LinkedIn URN (the `sub` from userinfo is the member ID)
+    updateUserSettings(stateData.userId, {
+      personalLinkedin: {
+        enabled:       true,
+        accessToken:   tokens.access_token,
+        tokenExpiry:   Date.now() + (tokens.expires_in ?? 5183944) * 1000,
+        linkedinUrn:   profile.sub,
+        linkedinName:  profile.name ?? '',
+        linkedinEmail: profile.email ?? '',
+        connectedAt:   new Date().toISOString(),
+      },
+    });
+
+    res.redirect(`${FRONTEND_URL}/settings?linkedin=connected`);
+  } catch (err) {
+    console.error('LinkedIn callback error:', err.message);
+    res.redirect(`${FRONTEND_URL}/settings?linkedin=error&reason=token`);
+  }
+};
+
+// DELETE /api/auth/linkedin  — disconnect (requires auth)
+export const linkedinDisconnect = (req, res) => {
+  updateUserSettings(req.user.id, {
+    personalLinkedin: {
+      enabled:       false,
+      accessToken:   '',
+      tokenExpiry:   null,
+      linkedinUrn:   '',
+      linkedinName:  '',
+      linkedinEmail: '',
+      connectedAt:   null,
+    },
+  });
+  res.json({ ok: true });
 };
 
 // GET /api/auth/config  — public: tells frontend whether Cognito is configured

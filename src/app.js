@@ -12,11 +12,15 @@ import examsRouter from './routes/exams.js';
 import interviewsRouter from './routes/interviews.js';
 import vendorsRouter from './routes/vendors.js';
 import dashboardRouter from './routes/dashboard.js';
+import publicRouter from './routes/public.js';
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
+
+// Public routes (no auth required) — before auth middleware
+app.use('/api/public', publicRouter);
 
 // Auth routes are public — register before the auth middleware
 app.use('/api/auth', authRouter);

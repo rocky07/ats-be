@@ -18,8 +18,10 @@ const PUBLIC_PATHS = [
   /^\/api\/auth\/provision$/,
   /^\/api\/auth\/dev-login$/,
   /^\/api\/auth\/dev-register$/,
-  /^\/api\/exams\/[^/]+$/,           // GET public exam
-  /^\/api\/exams\/[^/]+\/submit$/,   // POST exam submit
+  /^\/api\/exams\/[^/]+$/,                   // GET public exam
+  /^\/api\/exams\/[^/]+\/submit$/,           // POST exam submit
+  /^\/api\/auth\/linkedin\/callback$/,       // LinkedIn OAuth callback (no app token yet)
+  /^\/api\/public\//,                        // Public job board apply page
 ];
 
 export function authMiddleware(req, res, next) {
@@ -27,7 +29,10 @@ export function authMiddleware(req, res, next) {
   if (PUBLIC_PATHS.some((re) => re.test(req.path))) return next();
 
   const authHeader = req.headers['authorization'];
-  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
+  // Also accept ?token= query param (used for browser-redirect flows like LinkedIn OAuth start)
+  const token = authHeader?.startsWith('Bearer ')
+    ? authHeader.slice(7)
+    : (req.query?.token ? String(req.query.token) : null);
 
   if (!token) {
     return res.status(401).json({ error: 'No token provided' });
