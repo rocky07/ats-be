@@ -1,23 +1,22 @@
-import db from '../config/db.js';
+import { dbScan, dbPut, dbGet } from '../config/dynamodb.js';
 
-export const fetchRequirements = () => {
-    return db.data.requirements;
-}
+const TABLE = 'BourntecATS-Requirements';
 
-export const addRequirement = (requirement) => {
+export const fetchRequirements = () => dbScan(TABLE);
+
+export const addRequirement = async (requirement) => {
     const newRequirement = {
         id: Date.now().toString(),
-        ...requirement
+        ...requirement,
     };
-    db.data.requirements.push(newRequirement);
-    db.write();
+    await dbPut(TABLE, newRequirement);
     return newRequirement;
-}
+};
 
-export const updateRequirement = (id, updates) => {
-    const index = db.data.requirements.findIndex((r) => r.id === id);
-    if (index === -1) return null;
-    db.data.requirements[index] = { ...db.data.requirements[index], ...updates };
-    db.write();
-    return db.data.requirements[index];
-}
+export const updateRequirement = async (id, updates) => {
+    const existing = await dbGet(TABLE, { id });
+    if (!existing) return null;
+    const updated = { ...existing, ...updates };
+    await dbPut(TABLE, updated);
+    return updated;
+};

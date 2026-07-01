@@ -1,4 +1,6 @@
-import db from '../config/db.js';
+import { dbGet, dbPut } from '../config/dynamodb.js';
+
+const TABLE = 'BourntecATS-Settings';
 
 const DEFAULT_USER_SETTINGS = {
   emailNotifications: {
@@ -16,46 +18,41 @@ const DEFAULT_USER_SETTINGS = {
   jobBoardToggles: { linkedinCompany: false, linkedinJobs: false, monster: false, naukri: false, indeed: false },
 };
 
-// ── System Settings (admin-only) ──────────────────────────────────────────────
+// ── System Settings ───────────────────────────────────────────────────────────
 
-export function getSystemSettings() {
-  return db.data.systemSettings ?? {};
+export async function getSystemSettings() {
+  const row = await dbGet(TABLE, { pk: 'SYSTEM' });
+  return row ?? {};
 }
 
-export function updateSystemSettings(updates) {
-  if (!db.data.systemSettings) db.data.systemSettings = {};
-  // Deep-merge top-level keys (smtp, msGraph are objects)
+export async function updateSystemSettings(updates) {
+  const current = (await dbGet(TABLE, { pk: 'SYSTEM' })) ?? { pk: 'SYSTEM' };
   for (const [key, val] of Object.entries(updates)) {
     if (val && typeof val === 'object' && !Array.isArray(val)) {
-      db.data.systemSettings[key] = { ...(db.data.systemSettings[key] ?? {}), ...val };
+      current[key] = { ...(current[key] ?? {}), ...val };
     } else {
-      db.data.systemSettings[key] = val;
+      current[key] = val;
     }
   }
-  db.write();
-  return db.data.systemSettings;
+  await dbPut(TABLE, current);
+  return current;
 }
 
-// Masked version safe to return to non-admin users
-export function getPublicSystemSettings() {
-  const s = getSystemSettings();
-  return {
-    companyName: s.companyName,
-    defaultTimezone: s.defaultTimezone,
-  };
+export async function getPublicSystemSettings() {
+  const s = await getSystemSettings();
+  return { companyName: s.companyName, defaultTimezone: s.defaultTimezone };
 }
 
 // ── User Settings ─────────────────────────────────────────────────────────────
 
-export function getUserSettings(userId) {
-  const row = (db.data.userSettings ?? []).find((s) => s.userId === userId);
+export async function getUserSettings(userId) {
+  const row = await dbGet(TABLE, { pk: `USER#${userId}` });
   return { ...DEFAULT_USER_SETTINGS, ...(row ?? {}), userId };
 }
 
-export function updateUserSettings(userId, updates) {
-  if (!db.data.userSettings) db.data.userSettings = [];
-  const idx = db.data.userSettings.findIndex((s) => s.userId === userId);
-  const current = idx >= 0 ? db.data.userSettings[idx] : { userId };
+export async function updateUserSettings(userId, updates) {
+  const pk = `USER#${userId}`;
+  const current = (await dbGet(TABLE, { pk })) ?? { pk, userId };
 
   const merged = { ...current };
   for (const [key, val] of Object.entries(updates)) {
@@ -66,11 +63,6 @@ export function updateUserSettings(userId, updates) {
     }
   }
 
-  if (idx >= 0) {
-    db.data.userSettings[idx] = merged;
-  } else {
-    db.data.userSettings.push(merged);
-  }
-  db.write();
+  await dbPut(TABLE, merged);
   return { ...DEFAULT_USER_SETTINGS, ...merged };
 }

@@ -13,13 +13,12 @@ import crypto from 'crypto';
 const COGNITO_CONFIGURED = !!(process.env.COGNITO_USER_POOL_ID && process.env.COGNITO_CLIENT_ID);
 
 // POST /api/auth/provision  — called by frontend after Cognito login succeeds
-// Body: { cognitoSub, email, name, picture, groups }
-export const provision = (req, res) => {
+export const provision = async (req, res) => {
   try {
     const { cognitoSub, email, name, picture, groups } = req.body;
     if (!cognitoSub || !email) return res.status(400).json({ error: 'cognitoSub and email required' });
-    const user = provisionUser({ cognitoSub, email, name, picture, groups });
-    const settings = getUserSettings(user.id);
+    const user = await provisionUser({ cognitoSub, email, name, picture, groups });
+    const settings = await getUserSettings(user.id);
     res.json({ user, settings });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -27,30 +26,30 @@ export const provision = (req, res) => {
 };
 
 // POST /api/auth/dev-login  — only when Cognito is NOT configured
-export const devLoginHandler = (req, res) => {
+export const devLoginHandler = async (req, res) => {
   if (COGNITO_CONFIGURED) {
     return res.status(403).json({ error: 'Use Cognito authentication' });
   }
   const { email, password } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'email and password required' });
-  const user = devLogin(email, password);
+  const user = await devLogin(email, password);
   if (!user) return res.status(401).json({ error: 'Invalid credentials' });
   const token = signDevToken(user);
-  const settings = getUserSettings(user.id);
+  const settings = await getUserSettings(user.id);
   res.json({ token, user, settings });
 };
 
 // POST /api/auth/dev-register  — only when Cognito is NOT configured
-export const devRegister = (req, res) => {
+export const devRegister = async (req, res) => {
   if (COGNITO_CONFIGURED) {
     return res.status(403).json({ error: 'Use Cognito to create users' });
   }
   try {
     const { email, name, password, role } = req.body;
     if (!email || !password) return res.status(400).json({ error: 'email and password required' });
-    const user = createDevUser({ email, name, password, role });
+    const user = await createDevUser({ email, name, password, role });
     const token = signDevToken(user);
-    const settings = getUserSettings(user.id);
+    const settings = await getUserSettings(user.id);
     res.json({ token, user, settings });
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -58,24 +57,24 @@ export const devRegister = (req, res) => {
 };
 
 // GET /api/auth/me  — return current user + settings (requires auth)
-export const me = (req, res) => {
-  const user = findUserById(req.user.id);
-  const settings = getUserSettings(req.user.id);
+export const me = async (req, res) => {
+  const [user, settings] = await Promise.all([
+    findUserById(req.user.id),
+    getUserSettings(req.user.id),
+  ]);
   res.json({ user, settings, cognitoConfigured: COGNITO_CONFIGURED });
 };
 
 // GET /api/auth/users  — admin only
-export const getUsers = (req, res) => {
+export const getUsers = async (req, res) => {
   if (req.user?.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
-  res.json(listUsers());
+  res.json(await listUsers());
 };
 
-// ── LinkedIn OAuth ─────────────────────────────────────────────────────────────
+// ── LinkedIn OAuth ────────────────────────────────────────────────────────────
 
-// In-memory state store for CSRF protection (fine for single-process dev server)
-const oauthStates = new Map(); // state → { userId, expiresAt }
+const oauthStates = new Map();
 
-// GET /api/auth/linkedin  — requires auth (token from ?token= query param or Authorization header)
 export const linkedinConnect = (req, res) => {
   if (!process.env.LINKEDIN_CLIENT_ID) {
     return res.status(400).json({ error: 'LinkedIn client ID not configured' });
@@ -85,7 +84,6 @@ export const linkedinConnect = (req, res) => {
   res.redirect(buildAuthUrl(state));
 };
 
-// GET /api/auth/linkedin/callback  — LinkedIn redirects here after consent
 export const linkedinCallback = async (req, res) => {
   const { code, state, error } = req.query;
 
@@ -103,8 +101,7 @@ export const linkedinCallback = async (req, res) => {
     const tokens = await exchangeCode(code);
     const profile = await getMemberProfile(tokens.access_token);
 
-    // Store token + LinkedIn URN (the `sub` from userinfo is the member ID)
-    updateUserSettings(stateData.userId, {
+    await updateUserSettings(stateData.userId, {
       personalLinkedin: {
         enabled:       true,
         accessToken:   tokens.access_token,
@@ -123,9 +120,8 @@ export const linkedinCallback = async (req, res) => {
   }
 };
 
-// DELETE /api/auth/linkedin  — disconnect (requires auth)
-export const linkedinDisconnect = (req, res) => {
-  updateUserSettings(req.user.id, {
+export const linkedinDisconnect = async (req, res) => {
+  await updateUserSettings(req.user.id, {
     personalLinkedin: {
       enabled:       false,
       accessToken:   '',

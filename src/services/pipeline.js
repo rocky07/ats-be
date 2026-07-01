@@ -1,6 +1,3 @@
-import db from '../config/db.js';
+import { dbScan } from '../config/dynamodb.js';
 
-export const getAllCards = () => {
-  return db.data.cards;
-};
-
+export const getAllCards = () => dbScan('BourntecATS-Cards');

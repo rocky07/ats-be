@@ -6,15 +6,13 @@ import {
     getSubmission,
 } from '../services/examService.js';
 import { sendExamInvite } from '../services/emailService.js';
-import db from '../config/db.js';
+import { dbGet } from '../config/dynamodb.js';
 
 // POST /api/exams/generate — generate & persist exam for a requirement
 export const generate = async (req, res) => {
     try {
         const { requirementId } = req.body;
-        const requirement = (db.data.requirements ?? []).find(
-            (r) => String(r.id) === String(requirementId),
-        );
+        const requirement = await dbGet('BourntecATS-Requirements', { id: String(requirementId) });
         if (!requirement) return res.status(404).json({ error: 'Requirement not found' });
 
         const exam = await generateExam(requirement);
@@ -29,15 +27,16 @@ export const generate = async (req, res) => {
 };
 
 // GET /api/exams/by-requirement/:reqId — get exam for a requirement (internal)
-export const byRequirement = (req, res) => {
-    const exam = getExamByRequirement(req.params.reqId);
+export const byRequirement = async (req, res) => {
+    const exam = await getExamByRequirement(req.params.reqId);
     if (!exam) return res.status(404).json({ error: 'No exam for this requirement' });
     res.json(exam);
 };
 
 // GET /api/exams/:examId — public: fetch exam without correct answers
-export const fetchPublic = (req, res) => {
-    const exam = getExamPublic(req.params.examId);
+// examId param is the requirementId (PK of BourntecATS-Exams)
+export const fetchPublic = async (req, res) => {
+    const exam = await getExamPublic(req.params.examId);
     if (!exam) return res.status(404).json({ error: 'Exam not found' });
     res.json(exam);
 };
@@ -61,8 +60,8 @@ export const submit = async (req, res) => {
 };
 
 // GET /api/exams/:examId/submission/:candidateId — get a candidate's result
-export const submission = (req, res) => {
-    const s = getSubmission(req.params.examId, req.params.candidateId);
+export const submission = async (req, res) => {
+    const s = await getSubmission(req.params.examId, req.params.candidateId);
     if (!s) return res.status(404).json({ error: 'Submission not found' });
     res.json(s);
 };

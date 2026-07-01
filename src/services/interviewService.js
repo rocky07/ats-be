@@ -1,4 +1,7 @@
-import db from '../config/db.js';
+import { dbScan, dbPut, dbDelete, dbQuery } from '../config/dynamodb.js';
+
+const INTERVIEWS_TABLE = 'BourntecATS-Interviews';
+const PANEL_TABLE = 'BourntecATS-PanelMembers';
 
 const { MS_TENANT_ID, MS_CLIENT_ID, MS_CLIENT_SECRET, MS_ORGANIZER_EMAIL } = process.env;
 
@@ -66,7 +69,6 @@ export async function checkConflicts(attendeeEmails, startISO, endISO) {
         })),
       });
     } else if (r.status === 'rejected') {
-      // Calendar not accessible — flag but don't block
       conflicts.push({ email: r.reason?.message ?? 'unknown', accessError: true });
     }
   }
@@ -76,7 +78,6 @@ export async function checkConflicts(attendeeEmails, startISO, endISO) {
 // ── Schedule Teams meeting ────────────────────────────────────────────────────
 export async function scheduleTeamsMeeting({ subject, attendeeEmails, startISO, endISO, notes = '' }) {
   if (!MS_CONFIGURED) {
-    // Graceful mock when credentials aren't set
     const mockId = `mock-${Date.now()}`;
     console.log(`[interviewService] MS Graph not configured — mock meeting created: ${mockId}`);
     return {
@@ -120,14 +121,13 @@ export async function scheduleTeamsMeeting({ subject, attendeeEmails, startISO, 
 }
 
 // ── Panel members CRUD ────────────────────────────────────────────────────────
-export function getPanelMembers({ department, region } = {}) {
-  let members = db.data.panelMembers ?? [];
+export async function getPanelMembers({ department, region } = {}) {
+  let members = await dbScan(PANEL_TABLE);
   if (department) {
     members = members.filter(
       (m) => !m.departments?.length || m.departments.includes(department),
     );
   }
-  // 'global' region on a member means they cover all regions
   if (region && region !== 'global') {
     members = members.filter(
       (m) => !m.regions?.length || m.regions.includes('global') || m.regions.includes(region),
@@ -136,34 +136,29 @@ export function getPanelMembers({ department, region } = {}) {
   return members;
 }
 
-export function upsertPanelMember({ id, name, email, role, departments = [], regions = [] }) {
-  if (!db.data.panelMembers) db.data.panelMembers = [];
-  const existing = db.data.panelMembers.find((m) => m.id === id);
-  if (existing) {
-    Object.assign(existing, { name, email, role, departments, regions });
-  } else {
-    db.data.panelMembers.push({ id: id ?? Date.now().toString(), name, email, role, departments, regions });
-  }
-  db.write();
-  return db.data.panelMembers;
+export async function upsertPanelMember({ id, name, email, role, departments = [], regions = [] }) {
+  const member = { id: id ?? Date.now().toString(), name, email, role, departments, regions };
+  await dbPut(PANEL_TABLE, member);
+  return dbScan(PANEL_TABLE);
 }
 
-export function deletePanelMember(id) {
-  if (!db.data.panelMembers) return [];
-  db.data.panelMembers = db.data.panelMembers.filter((m) => m.id !== id);
-  db.write();
-  return db.data.panelMembers;
+export async function deletePanelMember(id) {
+  await dbDelete(PANEL_TABLE, { id });
+  return dbScan(PANEL_TABLE);
 }
 
 // ── Interview record ──────────────────────────────────────────────────────────
-export function saveInterview(record) {
-  if (!db.data.interviews) db.data.interviews = [];
+export async function saveInterview(record) {
   const interview = { id: Date.now().toString(), scheduledAt: new Date().toISOString(), ...record };
-  db.data.interviews.push(interview);
-  db.write();
+  await dbPut(INTERVIEWS_TABLE, interview);
   return interview;
 }
 
-export function getInterviewsByCandidate(candidateId) {
-  return (db.data.interviews ?? []).filter((i) => String(i.candidateId) === String(candidateId));
+export async function getInterviewsByCandidate(candidateId) {
+  return dbQuery(
+    INTERVIEWS_TABLE,
+    'candidateId-index',
+    'candidateId = :cid',
+    { ':cid': String(candidateId) },
+  );
 }

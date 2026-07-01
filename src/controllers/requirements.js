@@ -30,7 +30,7 @@ export const createRequirement = async (req, res) => {
 
         // Fire-and-forget: post to LinkedIn if the creating user has a connected account
         if (req.user?.id) {
-            const settings = getUserSettings(req.user.id);
+            const settings = await getUserSettings(req.user.id);
             const li = settings?.personalLinkedin;
             if (li?.enabled && li?.accessToken && li?.linkedinUrn) {
                 const tokenExpired = li.tokenExpiry && Date.now() > li.tokenExpiry;

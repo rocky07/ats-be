@@ -1,74 +1,75 @@
-import db from '../config/db.js';
+import { dbScan, dbPut, dbDelete, dbGet } from '../config/dynamodb.js';
 import { randomUUID } from 'crypto';
+
+const VENDORS_TABLE = 'BourntecATS-Vendors';
+const GROUPS_TABLE = 'BourntecATS-VendorGroups';
 
 // ── Groups ────────────────────────────────────────────────────────────────────
 
-export function getGroups() {
-  return db.data.vendorGroups ?? [];
+export async function getGroups() {
+  const rows = await dbScan(GROUPS_TABLE);
+  return rows.map((r) => r.name);
 }
 
-export function addGroup(name) {
-  if (!db.data.vendorGroups) db.data.vendorGroups = [];
-  if (db.data.vendorGroups.includes(name)) throw new Error(`Group "${name}" already exists`);
-  db.data.vendorGroups.push(name);
-  db.write();
-  return db.data.vendorGroups;
+export async function addGroup(name) {
+  const existing = await dbGet(GROUPS_TABLE, { name });
+  if (existing) throw new Error(`Group "${name}" already exists`);
+  await dbPut(GROUPS_TABLE, { name });
+  return getGroups();
 }
 
-export function renameGroup(oldName, newName) {
-  if (!db.data.vendorGroups) db.data.vendorGroups = [];
-  const idx = db.data.vendorGroups.indexOf(oldName);
-  if (idx === -1) throw new Error(`Group "${oldName}" not found`);
-  if (db.data.vendorGroups.includes(newName)) throw new Error(`Group "${newName}" already exists`);
-  db.data.vendorGroups[idx] = newName;
-  // Update vendors assigned to this group
-  (db.data.vendors ?? []).forEach((v) => { if (v.group === oldName) v.group = newName; });
-  db.write();
-  return db.data.vendorGroups;
+export async function renameGroup(oldName, newName) {
+  const old = await dbGet(GROUPS_TABLE, { name: oldName });
+  if (!old) throw new Error(`Group "${oldName}" not found`);
+  const conflict = await dbGet(GROUPS_TABLE, { name: newName });
+  if (conflict) throw new Error(`Group "${newName}" already exists`);
+
+  await dbDelete(GROUPS_TABLE, { name: oldName });
+  await dbPut(GROUPS_TABLE, { name: newName });
+
+  // Update vendors that reference the old group name
+  const vendors = await dbScan(VENDORS_TABLE);
+  await Promise.all(
+    vendors
+      .filter((v) => v.group === oldName)
+      .map((v) => dbPut(VENDORS_TABLE, { ...v, group: newName })),
+  );
+
+  return getGroups();
 }
 
-export function deleteGroup(name) {
-  if (!db.data.vendorGroups) db.data.vendorGroups = [];
-  const inUse = (db.data.vendors ?? []).some((v) => v.group === name);
-  if (inUse) throw new Error(`Group "${name}" is in use`);
-  db.data.vendorGroups = db.data.vendorGroups.filter((g) => g !== name);
-  db.write();
-  return db.data.vendorGroups;
+export async function deleteGroup(name) {
+  const vendors = await dbScan(VENDORS_TABLE);
+  if (vendors.some((v) => v.group === name)) throw new Error(`Group "${name}" is in use`);
+  await dbDelete(GROUPS_TABLE, { name });
+  return getGroups();
 }
 
 // ── Vendors ───────────────────────────────────────────────────────────────────
 
-export function getVendors() {
-  return db.data.vendors ?? [];
-}
+export const getVendors = () => dbScan(VENDORS_TABLE);
 
-export function upsertVendor(data) {
-  if (!db.data.vendors) db.data.vendors = [];
+export async function upsertVendor(data) {
   if (data.id) {
-    const idx = db.data.vendors.findIndex((v) => v.id === data.id);
-    if (idx === -1) throw new Error('Vendor not found');
-    db.data.vendors[idx] = { ...db.data.vendors[idx], ...data };
-    db.write();
-    return db.data.vendors[idx];
+    const existing = await dbGet(VENDORS_TABLE, { id: data.id });
+    if (!existing) throw new Error('Vendor not found');
+    const updated = { ...existing, ...data };
+    await dbPut(VENDORS_TABLE, updated);
+    return updated;
   }
   const vendor = { id: `v-${randomUUID()}`, status: 'Pending', group: null, ...data };
-  db.data.vendors.push(vendor);
-  db.write();
+  await dbPut(VENDORS_TABLE, vendor);
   return vendor;
 }
 
-export function bulkInsertVendors(list) {
-  if (!db.data.vendors) db.data.vendors = [];
+export async function bulkInsertVendors(list) {
   const inserted = list.map((v) => ({ id: `v-${randomUUID()}`, status: 'Pending', group: null, ...v }));
-  db.data.vendors.push(...inserted);
-  db.write();
+  await Promise.all(inserted.map((v) => dbPut(VENDORS_TABLE, v)));
   return inserted;
 }
 
-export function deleteVendor(id) {
-  if (!db.data.vendors) db.data.vendors = [];
-  const idx = db.data.vendors.findIndex((v) => v.id === id);
-  if (idx === -1) throw new Error('Vendor not found');
-  db.data.vendors.splice(idx, 1);
-  db.write();
+export async function deleteVendor(id) {
+  const existing = await dbGet(VENDORS_TABLE, { id });
+  if (!existing) throw new Error('Vendor not found');
+  await dbDelete(VENDORS_TABLE, { id });
 }

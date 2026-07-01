@@ -3,9 +3,9 @@ import { getDashboardStats } from '../services/dashboardService.js';
 
 const router = Router();
 
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   try {
-    res.json(getDashboardStats());
+    res.json(await getDashboardStats());
   } catch (e) {
     console.error('Dashboard error:', e);
     res.status(500).json({ error: 'Failed to compute dashboard stats' });

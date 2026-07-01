@@ -9,28 +9,28 @@ import {
 } from '../services/interviewService.js';
 
 // GET /api/interviews/panel
-export const listPanel = (req, res) => {
+export const listPanel = async (req, res) => {
   const { department, region } = req.query;
-  res.json(getPanelMembers({ department, region }));
+  res.json(await getPanelMembers({ department, region }));
 };
 
 // POST /api/interviews/panel  (create)
-export const addPanelMember = (req, res) => {
+export const addPanelMember = async (req, res) => {
   const { name, email, role, departments, regions } = req.body;
   if (!name || !email) return res.status(400).json({ error: 'name and email are required' });
-  res.json(upsertPanelMember({ name, email, role, departments: departments ?? [], regions: regions ?? [] }));
+  res.json(await upsertPanelMember({ name, email, role, departments: departments ?? [], regions: regions ?? [] }));
 };
 
 // PUT /api/interviews/panel/:id  (update)
-export const updatePanelMember = (req, res) => {
+export const updatePanelMember = async (req, res) => {
   const { name, email, role, departments, regions } = req.body;
   if (!name || !email) return res.status(400).json({ error: 'name and email are required' });
-  res.json(upsertPanelMember({ id: req.params.id, name, email, role, departments: departments ?? [], regions: regions ?? [] }));
+  res.json(await upsertPanelMember({ id: req.params.id, name, email, role, departments: departments ?? [], regions: regions ?? [] }));
 };
 
 // DELETE /api/interviews/panel/:id
-export const removePanelMember = (req, res) => {
-  res.json(deletePanelMember(req.params.id));
+export const removePanelMember = async (req, res) => {
+  res.json(await deletePanelMember(req.params.id));
 };
 
 // POST /api/interviews/check-conflicts
@@ -70,7 +70,7 @@ export const scheduleInterview = async (req, res) => {
 
     const meeting = await scheduleTeamsMeeting({ subject, attendeeEmails, startISO, endISO, notes });
 
-    const record = saveInterview({
+    const record = await saveInterview({
       candidateId,
       candidateName,
       candidateEmail,
@@ -93,6 +93,6 @@ export const scheduleInterview = async (req, res) => {
 };
 
 // GET /api/interviews/candidate/:candidateId
-export const listCandidateInterviews = (req, res) => {
-  res.json(getInterviewsByCandidate(req.params.candidateId));
+export const listCandidateInterviews = async (req, res) => {
+  res.json(await getInterviewsByCandidate(req.params.candidateId));
 };

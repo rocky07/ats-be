@@ -1,14 +1,12 @@
-import db from '../config/db.js';
+import { dbGet, dbPut, dbDelete, dbScan } from '../config/dynamodb.js';
 import { parseResume } from './resumeParser.js';
 import { uploadResume as uploadToS3 } from './s3Service.js';
 
-export const fetchCandidates = () => {
-    return db.data.candidates;
-};
+const TABLE = 'BourntecATS-Candidates';
 
-export const fetchCandidate = (id) => {
-    return db.data.candidates.find((c) => c.id === id);
-};
+export const fetchCandidates = () => dbScan(TABLE);
+
+export const fetchCandidate = (id) => dbGet(TABLE, { id });
 
 export const addCandidate = async (candidate) => {
     const newCandidate = {
@@ -19,22 +17,20 @@ export const addCandidate = async (candidate) => {
         source: candidate.source || 'Manual',
         skills: candidate.skills || [],
         date: new Date().toISOString().slice(0, 10),
+        createdAt: new Date().toISOString(),
         ...candidate,
     };
-    db.data.candidates.push(newCandidate);
-    await db.write();
+    await dbPut(TABLE, newCandidate);
     return newCandidate;
 };
 
 export const deleteCandidate = async (id) => {
-    const index = db.data.candidates.findIndex((c) => c.id === id);
-    if (index === -1) return null;
-    const [removed] = db.data.candidates.splice(index, 1);
-    await db.write();
-    return removed;
+    const existing = await dbGet(TABLE, { id });
+    if (!existing) return null;
+    await dbDelete(TABLE, { id });
+    return existing;
 };
 
-// Thrown when an uploaded resume duplicates an existing candidate with no new skills.
 export class DuplicateCandidateError extends Error {
     constructor(candidate) {
         super('Candidate already exists with the same skill set');
@@ -43,40 +39,35 @@ export class DuplicateCandidateError extends Error {
     }
 }
 
-// Normalize values so trivial formatting differences don't break matching.
 const normalizeEmail = (email = '') => email.trim().toLowerCase();
-const normalizePhone = (phone = '') => phone.replace(/\D/g, ''); // digits only
+const normalizePhone = (phone = '') => phone.replace(/\D/g, '');
 const normalizeSkills = (skills = []) =>
     [...new Set(skills.map((s) => s.trim().toLowerCase()))].sort();
 
-// True when the two skill arrays contain exactly the same skills.
 const sameSkills = (a, b) => {
     const sa = normalizeSkills(a);
     const sb = normalizeSkills(b);
     return sa.length === sb.length && sa.every((s, i) => s === sb[i]);
 };
 
-// Parse an uploaded resume file and persist it as a candidate.
-// If a candidate with the same email AND phone already exists, override it when
-// the skill set has changed; otherwise reject the upload as a duplicate.
 export const addCandidateFromResume = async (file) => {
     const parsed = await parseResume(file.buffer, file.mimetype, file.originalname);
 
     const email = normalizeEmail(parsed.email);
     const phone = normalizePhone(parsed.phone);
 
-    // Only attempt matching when we have both identifiers to match on.
-    const existing = email && phone
-        ? db.data.candidates.find(
+    let existing = null;
+    if (email && phone) {
+        const all = await dbScan(TABLE);
+        existing = all.find(
             (c) => normalizeEmail(c.email) === email && normalizePhone(c.phone) === phone,
-        )
-        : null;
+        ) ?? null;
+    }
 
     if (existing) {
         if (sameSkills(existing.skills, parsed.skills)) {
             throw new DuplicateCandidateError(existing);
         }
-        // Same person, updated skills — upload new resume and override record.
         existing.name = parsed.name || existing.name;
         existing.skills = parsed.skills;
         existing.resumeFile = file.originalname;
@@ -87,11 +78,10 @@ export const addCandidateFromResume = async (file) => {
         } catch (e) {
             console.error('S3 upload failed (non-fatal):', e.message);
         }
-        await db.write();
+        await dbPut(TABLE, existing);
         return existing;
     }
 
-    // Upload to S3 before persisting so we can store the key on the candidate.
     const candidateId = Date.now().toString();
     let resumeS3Key;
     try {

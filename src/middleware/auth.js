@@ -12,24 +12,21 @@ if (COGNITO_CONFIGURED) {
   });
 }
 
-// Routes that don't require authentication
 const PUBLIC_PATHS = [
   /^\/api\/auth\/config$/,
   /^\/api\/auth\/provision$/,
   /^\/api\/auth\/dev-login$/,
   /^\/api\/auth\/dev-register$/,
-  /^\/api\/exams\/[^/]+$/,                   // GET public exam
-  /^\/api\/exams\/[^/]+\/submit$/,           // POST exam submit
-  /^\/api\/auth\/linkedin\/callback$/,       // LinkedIn OAuth callback (no app token yet)
-  /^\/api\/public\//,                        // Public job board apply page
+  /^\/api\/exams\/[^/]+$/,
+  /^\/api\/exams\/[^/]+\/submit$/,
+  /^\/api\/auth\/linkedin\/callback$/,
+  /^\/api\/public\//,
 ];
 
-export function authMiddleware(req, res, next) {
-  // Always allow public paths
+export async function authMiddleware(req, res, next) {
   if (PUBLIC_PATHS.some((re) => re.test(req.path))) return next();
 
   const authHeader = req.headers['authorization'];
-  // Also accept ?token= query param (used for browser-redirect flows like LinkedIn OAuth start)
   const token = authHeader?.startsWith('Bearer ')
     ? authHeader.slice(7)
     : (req.query?.token ? String(req.query.token) : null);
@@ -38,28 +35,25 @@ export function authMiddleware(req, res, next) {
     return res.status(401).json({ error: 'No token provided' });
   }
 
-  // Dev mode token
   if (token.startsWith('dev.')) {
     if (COGNITO_CONFIGURED) {
       return res.status(401).json({ error: 'Dev tokens not accepted when Cognito is configured' });
     }
     const payload = verifyDevToken(token);
     if (!payload) return res.status(401).json({ error: 'Invalid dev token' });
-    const user = findUserById(payload.sub);
+    const user = await findUserById(payload.sub);
     if (!user) return res.status(401).json({ error: 'User not found' });
     req.user = user;
     return next();
   }
 
-  // Cognito JWT
   if (!verifier) {
     return res.status(401).json({ error: 'Authentication not configured' });
   }
 
   verifier.verify(token)
-    .then((payload) => {
-      // JIT provision on every request (lightweight — just updates lastLoginAt if exists)
-      const user = provisionUser({
+    .then(async (payload) => {
+      const user = await provisionUser({
         cognitoSub: payload.sub,
         email: payload.email ?? payload.username,
         name: payload.name ?? payload['cognito:username'],

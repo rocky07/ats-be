@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import multer from 'multer';
-import db from '../config/db.js';
+import { dbGet } from '../config/dynamodb.js';
 import { addCandidateFromResume, addCandidate, DuplicateCandidateError } from '../services/candidates.js';
 import { getPipeline, savePipeline } from '../services/pipelines.js';
 
@@ -10,7 +10,7 @@ const upload = multer({ storage: multer.memoryStorage() });
 const RECAPTCHA_SECRET = process.env.RECAPTCHA_SECRET_KEY ?? '';
 
 async function verifyCaptcha(token) {
-  if (!RECAPTCHA_SECRET) return true; // skip verification if not configured
+  if (!RECAPTCHA_SECRET) return true;
   const res = await fetch('https://www.google.com/recaptcha/api/siteverify', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -21,23 +21,18 @@ async function verifyCaptcha(token) {
 }
 
 // GET /api/public/jobs/:reqId  — public job detail for the apply page
-router.get('/jobs/:reqId', (req, res) => {
-  const req_ = (db.data.requirements ?? []).find(
-    (r) => String(r.id) === String(req.params.reqId),
-  );
+router.get('/jobs/:reqId', async (req, res) => {
+  const req_ = await dbGet('BourntecATS-Requirements', { id: String(req.params.reqId) });
   if (!req_) return res.status(404).json({ error: 'Job not found' });
   if (req_.status && req_.status !== 'open') {
     return res.status(410).json({ error: 'This position is no longer accepting applications' });
   }
-  // Return only public-safe fields
   const { id, title, department, description, openDate } = req_;
   res.json({ id, title, department, description, openDate });
 });
 
 // POST /api/public/jobs/:reqId/apply  — public resume submission
-// Accepts multipart/form-data: name, email (optional), resume (file)
 router.post('/jobs/:reqId/apply', upload.single('resume'), async (req, res) => {
-  // Verify CAPTCHA before doing anything else
   const captchaToken = req.body['g-recaptcha-response'];
   if (RECAPTCHA_SECRET && !captchaToken) {
     return res.status(400).json({ error: 'CAPTCHA verification required' });
@@ -48,9 +43,7 @@ router.post('/jobs/:reqId/apply', upload.single('resume'), async (req, res) => {
   }
 
   const reqId = req.params.reqId;
-  const requirement = (db.data.requirements ?? []).find(
-    (r) => String(r.id) === String(reqId),
-  );
+  const requirement = await dbGet('BourntecATS-Requirements', { id: String(reqId) });
   if (!requirement) return res.status(404).json({ error: 'Job not found' });
   if (requirement.status && requirement.status !== 'open') {
     return res.status(410).json({ error: 'This position is no longer accepting applications' });
@@ -60,13 +53,10 @@ router.post('/jobs/:reqId/apply', upload.single('resume'), async (req, res) => {
     let candidate;
 
     if (req.file) {
-      // Parse resume with AI
       candidate = await addCandidateFromResume(req.file);
-      // Override with explicit name/email if provided
       if (req.body.name)  candidate.name  = req.body.name;
       if (req.body.email) candidate.email = req.body.email;
     } else if (req.body.name && req.body.email) {
-      // No file — create a minimal candidate record
       candidate = await addCandidate({
         name:   req.body.name,
         email:  req.body.email,
@@ -76,8 +66,7 @@ router.post('/jobs/:reqId/apply', upload.single('resume'), async (req, res) => {
       return res.status(400).json({ error: 'Resume file or name+email required' });
     }
 
-    // Add full candidate object to ingested stage — matches the default pipeline behavior
-    const stages = getPipeline(reqId);
+    const stages = await getPipeline(reqId);
     const alreadyIn = stages.ingested.some((c) => String(c?.id ?? c) === String(candidate.id));
     if (!alreadyIn) {
       stages.ingested.push(candidate);
@@ -91,9 +80,8 @@ router.post('/jobs/:reqId/apply', upload.single('resume'), async (req, res) => {
     });
   } catch (err) {
     if (err instanceof DuplicateCandidateError) {
-      // Duplicate — still add to pipeline if not already there
       const existing = err.candidate ?? err;
-      const stages = getPipeline(reqId);
+      const stages = await getPipeline(reqId);
       const alreadyIn = stages.ingested.some((c) => String(c?.id ?? c) === String(existing?.id));
       if (existing?.id && !alreadyIn) {
         stages.ingested.push(existing);

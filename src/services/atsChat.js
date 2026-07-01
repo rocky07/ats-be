@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
-import db from '../config/db.js';
+import { dbScan } from '../config/dynamodb.js';
 import { STAGE_KEYS, getPipeline } from './pipelines.js';
 
 const STAGE_LABELS = {
@@ -10,23 +10,27 @@ const STAGE_LABELS = {
   l3: 'L3 (Final)',
 };
 
-const buildContext = () => {
-  const requirements = db.data.requirements ?? [];
-  const candidates = db.data.candidates ?? [];
-  const pipelines = db.data.pipelines ?? [];
+const buildContext = async () => {
+  const [requirements, candidates, pipelines] = await Promise.all([
+    dbScan('BourntecATS-Requirements'),
+    dbScan('BourntecATS-Candidates'),
+    dbScan('BourntecATS-Pipelines'),
+  ]);
 
-  const reqLines = requirements.map((r) => {
-    const stages = getPipeline(r.id);
-    const stageSummary = STAGE_KEYS.map(
-      (k) => `${STAGE_LABELS[k]}: ${(stages[k] ?? []).length}`
-    ).join(', ');
-    return (
-      `- [${r.id}] ${r.title} | ${r.department ?? ''} | ${r.location ?? ''} | ` +
-      `${r.workMode ?? ''} | ${r.jobType ?? ''} | Status: ${r.status ?? 'open'} | ` +
-      `Must-haves: ${(r.mustHaves ?? []).join(', ')} | ` +
-      `Pipeline: ${stageSummary}`
-    );
-  });
+  const reqLines = await Promise.all(
+    requirements.map(async (r) => {
+      const stages = await getPipeline(r.id);
+      const stageSummary = STAGE_KEYS.map(
+        (k) => `${STAGE_LABELS[k]}: ${(stages[k] ?? []).length}`
+      ).join(', ');
+      return (
+        `- [${r.id}] ${r.title} | ${r.department ?? ''} | ${r.location ?? ''} | ` +
+        `${r.workMode ?? ''} | ${r.jobType ?? ''} | Status: ${r.status ?? 'open'} | ` +
+        `Must-haves: ${(r.mustHaves ?? []).join(', ')} | ` +
+        `Pipeline: ${stageSummary}`
+      );
+    }),
+  );
 
   const candLines = candidates.map((c) =>
     `- [${c.id}] ${c.name} | ${c.email ?? ''} | Skills: ${(c.skills ?? []).join(', ')}`
@@ -48,7 +52,7 @@ export const atsChatReply = async (history) => {
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not configured on the server');
 
   const client = new Anthropic({ apiKey });
-  const context = buildContext();
+  const context = await buildContext();
 
   const system =
     'You are an ATS (Applicant Tracking System) assistant embedded in Bourntec ATS. ' +

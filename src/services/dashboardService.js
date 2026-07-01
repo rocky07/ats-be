@@ -1,4 +1,4 @@
-import db from '../config/db.js';
+import { dbScan } from '../config/dynamodb.js';
 
 const STAGE_LABELS = {
   ingested: 'Ingested',
@@ -10,11 +10,13 @@ const STAGE_LABELS = {
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
-export function getDashboardStats() {
-  const candidates  = db.data.candidates  ?? [];
-  const requirements = db.data.requirements ?? [];
-  const pipelines   = db.data.pipelines   ?? [];
-  const interviews  = db.data.interviews  ?? [];
+export async function getDashboardStats() {
+  const [candidates, requirements, pipelines, interviews] = await Promise.all([
+    dbScan('BourntecATS-Candidates'),
+    dbScan('BourntecATS-Requirements'),
+    dbScan('BourntecATS-Pipelines'),
+    dbScan('BourntecATS-Interviews'),
+  ]);
 
   const now     = Date.now();
   const weekAgo = now - WEEK_MS;
@@ -28,33 +30,24 @@ export function getDashboardStats() {
 
   const activeOpenings = requirements.filter((r) => (r.status ?? 'open') === 'open').length;
 
-  // Count all candidates across every pipeline stage
-  let totalIngested = 0;
-  let totalL3       = 0;
-  let totalOffered  = 0;
-
+  let totalIngested = 0, totalL1 = 0, totalL2 = 0, totalL3 = 0;
   for (const p of pipelines) {
     const s = p.stages ?? {};
     totalIngested += (s.ingested ?? []).length;
+    totalL1       += (s.l1        ?? []).length;
+    totalL2       += (s.l2        ?? []).length;
     totalL3       += (s.l3        ?? []).length;
-    // "offered" = candidates whose status is 'Offer' or 'offer' anywhere
   }
 
-  // Offer-accept rate: l3 completions / l3 started (proxy: l3 count vs l2 count)
-  let totalL2 = 0;
-  for (const p of pipelines) totalL2 += (p.stages?.l2 ?? []).length;
   const offerAcceptRate = totalL3 > 0 && totalL2 > 0
     ? Math.round((totalL3 / totalL2) * 100)
     : 0;
 
-  // Screening pass rate: l1 / ingested
-  let totalL1 = 0;
-  for (const p of pipelines) totalL1 += (p.stages?.l1 ?? []).length;
   const screeningPassRate = totalIngested > 0
     ? Math.round((totalL1 / totalIngested) * 100)
     : 0;
 
-  // ── Sourcing mix ─────────────────────────────────────────────────────────
+  // ── Sourcing mix ──────────────────────────────────────────────────────────
 
   const sourceCounts = {};
   for (const c of candidates) {
@@ -77,9 +70,7 @@ export function getDashboardStats() {
   }));
 
   // ── Source quality matrix ─────────────────────────────────────────────────
-  // For each stage, break down counts by candidate source
 
-  // Build a map: candidateId -> source
   const sourceMap = {};
   for (const c of candidates) sourceMap[String(c.id)] = c.source ?? 'Manual';
 
@@ -129,12 +120,7 @@ export function getDashboardStats() {
     .slice(0, 8);
 
   return {
-    kpis: {
-      totalCandidatesThisWeek,
-      activeOpenings,
-      offerAcceptRate,
-      screeningPassRate,
-    },
+    kpis: { totalCandidatesThisWeek, activeOpenings, offerAcceptRate, screeningPassRate },
     sourcingData,
     funnelData,
     qualityData,

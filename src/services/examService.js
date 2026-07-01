@@ -1,5 +1,8 @@
 import Anthropic from '@anthropic-ai/sdk';
-import db from '../config/db.js';
+import { dbGet, dbPut } from '../config/dynamodb.js';
+
+const EXAMS_TABLE = 'BourntecATS-Exams';
+const SUBMISSIONS_TABLE = 'BourntecATS-ExamSubmissions';
 
 // ── Generation ────────────────────────────────────────────────────────────────
 
@@ -46,32 +49,27 @@ export const generateExam = async (requirement) => {
     const json = raw.replace(/```(?:json)?/g, '').trim();
     const parsed = JSON.parse(json);
 
-    // Persist to db
+    // PK is requirementId — PutItem naturally upserts (replaces existing exam for this requirement)
     const exam = {
-        id: Date.now().toString(),
         requirementId: String(requirement.id),
+        id: Date.now().toString(),
         title: parsed.title ?? `${requirement.title} — L1 Exam`,
         questions: parsed.questions ?? [],
         generatedAt: new Date().toISOString(),
     };
 
-    // Upsert: replace any existing exam for this requirement
-    const idx = (db.data.exams ?? []).findIndex(
-        (e) => String(e.requirementId) === String(requirement.id),
-    );
-    if (idx >= 0) {
-        db.data.exams[idx] = exam;
-    } else {
-        db.data.exams.push(exam);
-    }
-    await db.write();
+    await dbPut(EXAMS_TABLE, exam);
     return exam;
 };
 
 // ── Fetch (public — strip correct answers) ───────────────────────────────────
 
-export const getExamPublic = (examId) => {
-    const exam = (db.data.exams ?? []).find((e) => e.id === examId);
+export const getExamByRequirement = async (requirementId) => {
+    return dbGet(EXAMS_TABLE, { requirementId: String(requirementId) });
+};
+
+export const getExamPublic = async (requirementId) => {
+    const exam = await dbGet(EXAMS_TABLE, { requirementId: String(requirementId) });
     if (!exam) return null;
     return {
         ...exam,
@@ -79,19 +77,13 @@ export const getExamPublic = (examId) => {
     };
 };
 
-export const getExamByRequirement = (requirementId) => {
-    return (db.data.exams ?? []).find(
-        (e) => String(e.requirementId) === String(requirementId),
-    ) ?? null;
-};
-
 // ── Submit ────────────────────────────────────────────────────────────────────
 
 export const submitExam = async ({ examId, candidateId, candidateName, answers, timeTaken }) => {
-    const exam = (db.data.exams ?? []).find((e) => e.id === examId);
+    // examId is the requirementId (PK of exams table)
+    const exam = await dbGet(EXAMS_TABLE, { requirementId: examId });
     if (!exam) throw new Error('Exam not found');
 
-    // Grade: compare submitted answers to correct answers
     let correct = 0;
     for (const q of exam.questions) {
         if (answers[q.id] && answers[q.id] === q.correctAnswer) correct++;
@@ -100,35 +92,22 @@ export const submitExam = async ({ examId, candidateId, candidateName, answers, 
     const score = Math.round((correct / total) * 100);
 
     const submission = {
-        id: Date.now().toString(),
         examId,
-        requirementId: exam.requirementId,
         candidateId: String(candidateId),
+        requirementId: examId,
         candidateName,
         answers,
         correct,
         total,
         score,
-        timeTaken, // seconds
+        timeTaken,
         submittedAt: new Date().toISOString(),
     };
 
-    if (!db.data.examSubmissions) db.data.examSubmissions = [];
-    // Upsert per candidate per exam
-    const sidx = db.data.examSubmissions.findIndex(
-        (s) => s.examId === examId && String(s.candidateId) === String(candidateId),
-    );
-    if (sidx >= 0) {
-        db.data.examSubmissions[sidx] = submission;
-    } else {
-        db.data.examSubmissions.push(submission);
-    }
-    await db.write();
+    await dbPut(SUBMISSIONS_TABLE, submission);
     return submission;
 };
 
 export const getSubmission = (examId, candidateId) => {
-    return (db.data.examSubmissions ?? []).find(
-        (s) => s.examId === examId && String(s.candidateId) === String(candidateId),
-    ) ?? null;
+    return dbGet(SUBMISSIONS_TABLE, { examId, candidateId: String(candidateId) });
 };
