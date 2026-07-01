@@ -1,5 +1,6 @@
 import db from '../config/db.js';
 import { parseResume } from './resumeParser.js';
+import { uploadResume as uploadToS3 } from './s3Service.js';
 
 export const fetchCandidates = () => {
     return db.data.candidates;
@@ -73,22 +74,37 @@ export const addCandidateFromResume = async (file) => {
 
     if (existing) {
         if (sameSkills(existing.skills, parsed.skills)) {
-            // Same person, same skills — nothing new to record.
             throw new DuplicateCandidateError(existing);
         }
-        // Same person, updated skills — override the existing record in place.
+        // Same person, updated skills — upload new resume and override record.
         existing.name = parsed.name || existing.name;
         existing.skills = parsed.skills;
         existing.resumeFile = file.originalname;
         existing.source = 'Upload';
         existing.date = new Date().toISOString().slice(0, 10);
+        try {
+            existing.resumeS3Key = await uploadToS3(existing.id, file.buffer, file.mimetype, file.originalname);
+        } catch (e) {
+            console.error('S3 upload failed (non-fatal):', e.message);
+        }
         await db.write();
         return existing;
     }
 
+    // Upload to S3 before persisting so we can store the key on the candidate.
+    const candidateId = Date.now().toString();
+    let resumeS3Key;
+    try {
+        resumeS3Key = await uploadToS3(candidateId, file.buffer, file.mimetype, file.originalname);
+    } catch (e) {
+        console.error('S3 upload failed (non-fatal):', e.message);
+    }
+
     return addCandidate({
+        id: candidateId,
         ...parsed,
         source: 'Upload',
         resumeFile: file.originalname,
+        ...(resumeS3Key ? { resumeS3Key } : {}),
     });
 };

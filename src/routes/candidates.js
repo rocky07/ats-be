@@ -7,6 +7,8 @@ import {
     uploadResume,
     removeCandidate,
 } from '../controllers/candidates.js';
+import { fetchCandidate } from '../services/candidates.js';
+import { getResumeDownloadUrl } from '../services/s3Service.js';
 
 const router = express.Router();
 
@@ -21,5 +23,19 @@ router.get('/:id', getCandidate);
 router.post('/', createCandidate);
 router.post('/upload', upload.single('resume'), uploadResume);
 router.delete('/:id', removeCandidate);
+
+// GET /api/candidates/:id/resume  — returns a presigned S3 download URL (1 hr expiry)
+router.get('/:id/resume', async (req, res) => {
+    const candidate = fetchCandidate(req.params.id);
+    if (!candidate) return res.status(404).json({ error: 'Candidate not found' });
+    if (!candidate.resumeS3Key) return res.status(404).json({ error: 'No resume on file' });
+    try {
+        const url = await getResumeDownloadUrl(candidate.resumeS3Key);
+        res.json({ url });
+    } catch (e) {
+        console.error('Presign error:', e.message);
+        res.status(500).json({ error: 'Could not generate download link' });
+    }
+});
 
 export default router;
