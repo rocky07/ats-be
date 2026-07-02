@@ -2,3 +2,4 @@ main.tf
 .terraform
 .env
 node_modules
+src/config/db.json
