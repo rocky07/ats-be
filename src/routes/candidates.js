@@ -26,7 +26,7 @@ router.delete('/:id', removeCandidate);
 
 // GET /api/candidates/:id/resume  — returns a presigned S3 download URL (1 hr expiry)
 router.get('/:id/resume', async (req, res) => {
-    const candidate = fetchCandidate(req.params.id);
+    const candidate = await fetchCandidate(req.params.id);
     if (!candidate) return res.status(404).json({ error: 'Candidate not found' });
     if (!candidate.resumeS3Key) return res.status(404).json({ error: 'No resume on file' });
     try {

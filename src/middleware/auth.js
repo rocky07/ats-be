@@ -1,5 +1,5 @@
 import { CognitoJwtVerifier } from 'aws-jwt-verify';
-import { verifyDevToken, findUserById, provisionUser } from '../services/authService.js';
+import { verifyDevToken, findUserById, findUserBySub } from '../services/authService.js';
 
 const COGNITO_CONFIGURED = !!(process.env.COGNITO_USER_POOL_ID && process.env.COGNITO_CLIENT_ID);
 
@@ -53,12 +53,8 @@ export async function authMiddleware(req, res, next) {
 
   verifier.verify(token)
     .then(async (payload) => {
-      const user = await provisionUser({
-        cognitoSub: payload.sub,
-        email: payload.email ?? payload.username,
-        name: payload.name ?? payload['cognito:username'],
-        groups: payload['cognito:groups'] ?? [],
-      });
+      const user = await findUserBySub(payload.sub);
+      if (!user) return res.status(401).json({ error: 'User not provisioned — please log in again' });
       req.user = user;
       next();
     })

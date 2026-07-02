@@ -25,7 +25,12 @@ export async function provisionUser({ cognitoSub, email, name, picture, groups =
   const existing = await findUserBySub(cognitoSub);
   if (existing) {
     existing.lastLoginAt = new Date().toISOString();
-    if (name && !existing.name) existing.name = name;
+    // Always update name: overwrite UUIDs or missing values with a real name/email
+    if (name && (name !== existing.name) && !name.match(/^[0-9a-f-]{36}$/i)) existing.name = name;
+    // Keep role in sync with Cognito groups on every login
+    if (groups.length > 0) {
+      existing.role = groups.includes('admins') ? 'admin' : 'recruiter';
+    }
     await dbPut(TABLE, existing);
     return existing;
   }

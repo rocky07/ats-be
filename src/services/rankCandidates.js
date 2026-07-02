@@ -25,10 +25,26 @@ export const rankCandidates = async (candidates, requirement) => {
         .join('\n');
 
     const candSummary = candidates
-        .map(
-            (c, i) =>
-                `Candidate ${i + 1} [id:${c.id}]: ${c.name} | Skills: ${(c.skills ?? []).join(', ')}`,
-        )
+        .map((c, i) => {
+            const parts = [`Candidate ${i + 1} [id:${c.id}]: ${c.name}`];
+            if (c.title) parts.push(`Title: ${c.title}`);
+            if (c.yearsOfExperience) parts.push(`Experience: ${c.yearsOfExperience} years`);
+            if (c.location) parts.push(`Location: ${c.location}`);
+            if ((c.skills ?? []).length) parts.push(`Skills: ${c.skills.join(', ')}`);
+            if ((c.certifications ?? []).length) parts.push(`Certifications: ${c.certifications.join(', ')}`);
+            if ((c.experience ?? []).length) {
+                const roles = c.experience
+                    .map((e) => `${e.title} at ${e.company} (${e.startDate}–${e.endDate})`)
+                    .join('; ');
+                parts.push(`Work history: ${roles}`);
+            }
+            if ((c.education ?? []).length) {
+                const edu = c.education.map((e) => `${e.degree} from ${e.institution}`).join('; ');
+                parts.push(`Education: ${edu}`);
+            }
+            if (c.summary) parts.push(`Summary: ${c.summary}`);
+            return parts.join(' | ');
+        })
         .join('\n');
 
     const prompt =

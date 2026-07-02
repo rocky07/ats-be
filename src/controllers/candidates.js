@@ -1,5 +1,6 @@
 import * as candidatesService from '../services/candidates.js';
 import { DuplicateCandidateError } from '../services/candidates.js';
+import { getUserSettings } from '../services/settingsService.js';
 
 export const getCandidates = async (req, res) => {
     try {
@@ -35,7 +36,9 @@ export const createCandidate = async (req, res) => {
 export const uploadResume = async (req, res) => {
     try {
         if (!req.file) return res.status(400).json({ error: 'No resume file uploaded' });
-        const candidate = await candidatesService.addCandidateFromResume(req.file);
+        const userSettings = await getUserSettings(req.user.id);
+        const useAI = userSettings?.aiSettings?.enableAIResumeParsing === true;
+        const candidate = await candidatesService.addCandidateFromResume(req.file, useAI);
         res.status(201).json(candidate);
     } catch (error) {
         if (error instanceof DuplicateCandidateError) {

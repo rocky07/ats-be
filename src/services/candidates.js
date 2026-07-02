@@ -50,8 +50,8 @@ const sameSkills = (a, b) => {
     return sa.length === sb.length && sa.every((s, i) => s === sb[i]);
 };
 
-export const addCandidateFromResume = async (file) => {
-    const parsed = await parseResume(file.buffer, file.mimetype, file.originalname);
+export const addCandidateFromResume = async (file, useAI = false) => {
+    const parsed = await parseResume(file.buffer, file.mimetype, file.originalname, useAI);
 
     const email = normalizeEmail(parsed.email);
     const phone = normalizePhone(parsed.phone);
