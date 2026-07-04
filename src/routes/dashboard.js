@@ -5,7 +5,7 @@ const router = Router();
 
 router.get('/', async (req, res) => {
   try {
-    res.json(await getDashboardStats());
+    res.json(await getDashboardStats(req.query.region));
   } catch (e) {
     console.error('Dashboard error:', e);
     res.status(500).json({ error: 'Failed to compute dashboard stats' });

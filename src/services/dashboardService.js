@@ -10,13 +10,43 @@ const STAGE_LABELS = {
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
-export async function getDashboardStats() {
-  const [candidates, requirements, pipelines, interviews] = await Promise.all([
+export async function getDashboardStats(region = 'global') {
+  const [allCandidates, allRequirements, allPipelines, allInterviews] = await Promise.all([
     dbScan('BourntecATS-Candidates'),
     dbScan('BourntecATS-Requirements'),
     dbScan('BourntecATS-Pipelines'),
     dbScan('BourntecATS-Interviews'),
   ]);
+
+  const requirements = region === 'global'
+    ? allRequirements
+    : allRequirements.filter((r) => (r.regions ?? []).includes(region));
+
+  const reqIds = new Set(requirements.map((r) => String(r.id)));
+
+  const pipelines = region === 'global'
+    ? allPipelines
+    : allPipelines.filter((p) => reqIds.has(String(p.requirementId)));
+
+  // Candidates/interviews are scoped to the requirements' pipelines (candidates
+  // don't carry a region of their own, so we derive scope from which pipeline
+  // stage lists they appear in).
+  const candidateIdsInScope = new Set();
+  for (const p of pipelines) {
+    for (const key of Object.keys(STAGE_LABELS)) {
+      for (const item of p.stages?.[key] ?? []) {
+        candidateIdsInScope.add(String(item.id ?? item.candidateId ?? item));
+      }
+    }
+  }
+
+  const candidates = region === 'global'
+    ? allCandidates
+    : allCandidates.filter((c) => candidateIdsInScope.has(String(c.id)));
+
+  const interviews = region === 'global'
+    ? allInterviews
+    : allInterviews.filter((i) => candidateIdsInScope.has(String(i.candidateId)));
 
   const now     = Date.now();
   const weekAgo = now - WEEK_MS;

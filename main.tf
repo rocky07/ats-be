@@ -8,7 +8,7 @@ terraform {
 }
 
 provider "aws" {
-  region = "us-east-1"
+  region = "us-east-2"
 }
 
 # ── SSH Key Pair ──────────────────────────────────────────────────────────────
@@ -59,7 +59,7 @@ locals {
 }
 
 resource "aws_instance" "ats_be_server" {
-  ami           = "ami-0c7217cdde317cfec" # Ubuntu 22.04 LTS (us-east-1)
+  ami           = "ami-0cf6185a5bb26f705" # Ubuntu 22.04 LTS (us-east-2)
   instance_type = "t2.micro"
 
   key_name               = aws_key_pair.ats_be_key.key_name

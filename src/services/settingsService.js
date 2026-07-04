@@ -12,7 +12,7 @@ const DEFAULT_USER_SETTINGS = {
   timezone: 'America/New_York',
   theme: 'light',
   defaultView: 'board',
-  compactMode: false,
+  defaultRegion: 'global',
   language: 'en',
   personalLinkedin: { enabled: false, accessToken: '', clientId: '', clientSecret: '' },
   jobBoardToggles: { linkedinCompany: false, linkedinJobs: false, monster: false, naukri: false, indeed: false },
