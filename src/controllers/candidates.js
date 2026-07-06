@@ -1,5 +1,5 @@
 import * as candidatesService from '../services/candidates.js';
-import { DuplicateCandidateError } from '../services/candidates.js';
+import { DuplicateCandidateError, NoResumeOnFileError } from '../services/candidates.js';
 import { getUserSettings } from '../services/settingsService.js';
 
 export const getCandidates = async (req, res) => {
@@ -46,6 +46,20 @@ export const uploadResume = async (req, res) => {
         }
         console.error('Error parsing resume:', error);
         res.status(500).json({ error: 'Failed to parse resume' });
+    }
+};
+
+export const reparseResume = async (req, res) => {
+    try {
+        const candidate = await candidatesService.reparseCandidateWithAI(req.params.id);
+        if (!candidate) return res.status(404).json({ error: 'Candidate not found' });
+        res.json(candidate);
+    } catch (error) {
+        if (error instanceof NoResumeOnFileError) {
+            return res.status(400).json({ error: error.message });
+        }
+        console.error('Error re-parsing resume with AI:', error);
+        res.status(500).json({ error: 'Failed to parse resume with Claude' });
     }
 };
 

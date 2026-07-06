@@ -5,6 +5,7 @@ import {
     getCandidate,
     createCandidate,
     uploadResume,
+    reparseResume,
     removeCandidate,
 } from '../controllers/candidates.js';
 import { fetchCandidate } from '../services/candidates.js';
@@ -22,6 +23,7 @@ router.get('/', getCandidates);
 router.get('/:id', getCandidate);
 router.post('/', createCandidate);
 router.post('/upload', upload.single('resume'), uploadResume);
+router.post('/:id/reparse', reparseResume);
 router.delete('/:id', removeCandidate);
 
 // GET /api/candidates/:id/resume  — returns a presigned S3 download URL (1 hr expiry)

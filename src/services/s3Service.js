@@ -27,3 +27,11 @@ export async function getResumeDownloadUrl(s3Key) {
   const command = new GetObjectCommand({ Bucket: BUCKET, Key: s3Key });
   return getSignedUrl(s3, command, { expiresIn: 3600 });
 }
+
+// Download a resume's raw bytes from S3 (used to re-parse an already-uploaded resume).
+export async function getResumeBuffer(s3Key) {
+  const { Body } = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: s3Key }));
+  const chunks = [];
+  for await (const chunk of Body) chunks.push(chunk);
+  return Buffer.concat(chunks);
+}

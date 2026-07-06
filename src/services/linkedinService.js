@@ -70,6 +70,12 @@ export async function postJobToLinkedIn({ accessToken, linkedinUrn, requirement,
     `Apply here 👉 ${applyUrl}\n\n` +
     `#hiring #jobs #recruitment`;
 
+  return postTextToLinkedIn({ accessToken, linkedinUrn, text });
+}
+
+// ── Post arbitrary (e.g. user-customized) text to the member's feed ───────────
+
+export async function postTextToLinkedIn({ accessToken, linkedinUrn, text }) {
   const body = {
     author: `urn:li:person:${linkedinUrn}`,
     lifecycleState: 'PUBLISHED',
