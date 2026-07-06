@@ -1,12 +1,14 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { dbGet, dbPut } from '../config/dynamodb.js';
+import { getSystemSettings } from './settingsService.js';
 
 const EXAMS_TABLE = 'BourntecATS-Exams';
 const SUBMISSIONS_TABLE = 'BourntecATS-ExamSubmissions';
+const REQUIREMENTS_TABLE = 'BourntecATS-Requirements';
 
 // ── Generation ────────────────────────────────────────────────────────────────
 
-export const generateExam = async (requirement) => {
+export const generateExam = async (requirement, questionCount = 20) => {
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not configured on the server');
 
@@ -27,7 +29,7 @@ export const generateExam = async (requirement) => {
         .join('\n');
 
     const prompt =
-        `You are a senior technical recruiter. Generate exactly 20 multiple-choice questions to ` +
+        `You are a senior technical recruiter. Generate exactly ${questionCount} multiple-choice questions to ` +
         `assess a candidate for the following role. Each question must have 4 options (A, B, C, D) ` +
         `and exactly one correct answer. Return ONLY valid JSON — no prose, no markdown fences — ` +
         `matching this schema:\n` +
@@ -71,9 +73,19 @@ export const getExamByRequirement = async (requirementId) => {
 export const getExamPublic = async (requirementId) => {
     const exam = await dbGet(EXAMS_TABLE, { requirementId: String(requirementId) });
     if (!exam) return null;
+    // Verification requirement and time limit are read live from system settings,
+    // overridden per-job by the requirement's own examConfig when set (not baked in
+    // at generation time) so admins/recruiters can retoggle without regenerating exams.
+    const [{ examSettings }, requirement] = await Promise.all([
+        getSystemSettings(),
+        dbGet(REQUIREMENTS_TABLE, { id: String(requirementId) }),
+    ]);
+    const override = requirement?.examConfig ?? {};
     return {
         ...exam,
         questions: exam.questions.map(({ correctAnswer: _a, ...rest }) => rest),
+        requireIdVerification: override.requireIdVerification ?? examSettings.requireIdVerification,
+        timeLimitMinutes: override.timeLimitMinutes ?? examSettings.timeLimitMinutes,
     };
 };
 

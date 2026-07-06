@@ -6,6 +6,8 @@ import {
     getSubmission,
 } from '../services/examService.js';
 import { sendExamInvite } from '../services/emailService.js';
+import { verifyIdentity } from '../services/verificationService.js';
+import { getSystemSettings } from '../services/settingsService.js';
 import { dbGet } from '../config/dynamodb.js';
 
 // POST /api/exams/generate — generate & persist exam for a requirement
@@ -15,7 +17,9 @@ export const generate = async (req, res) => {
         const requirement = await dbGet('BourntecATS-Requirements', { id: String(requirementId) });
         if (!requirement) return res.status(404).json({ error: 'Requirement not found' });
 
-        const exam = await generateExam(requirement);
+        const { examSettings } = await getSystemSettings();
+        const questionCount = requirement.examConfig?.questionCount ?? examSettings.questionCount;
+        const exam = await generateExam(requirement, questionCount);
         res.json(exam);
     } catch (err) {
         if (err.message?.includes('ANTHROPIC_API_KEY')) {
@@ -64,6 +68,18 @@ export const submission = async (req, res) => {
     const s = await getSubmission(req.params.examId, req.params.candidateId);
     if (!s) return res.status(404).json({ error: 'Submission not found' });
     res.json(s);
+};
+
+// POST /api/exams/:examId/verify-identity — public: verify candidate face + name before starting the timed exam
+export const verifyExamIdentity = async (req, res) => {
+    try {
+        const { selfieImageBase64, idImageBase64, candidateName } = req.body;
+        const result = await verifyIdentity({ selfieImageBase64, idImageBase64, candidateName });
+        res.json(result);
+    } catch (err) {
+        console.error('Identity verification error:', err);
+        res.status(err.message?.includes('required') ? 400 : 500).json({ error: err.message ?? 'Verification failed' });
+    }
 };
 
 // POST /api/exams/send-invite — send exam link to candidate via email

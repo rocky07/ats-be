@@ -17,7 +17,9 @@ import publicRouter from './routes/public.js';
 const app = express();
 
 app.use(cors());
-app.use(express.json());
+// Raised from the 100kb default — identity verification posts base64-encoded
+// selfie + ID document photos, which can run several MB each.
+app.use(express.json({ limit: '15mb' }));
 
 // Public routes (no auth required) — before auth middleware
 app.use('/api/public', publicRouter);

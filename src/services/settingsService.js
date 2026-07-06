@@ -18,11 +18,23 @@ const DEFAULT_USER_SETTINGS = {
   jobBoardToggles: { linkedinCompany: false, linkedinJobs: false, monster: false, naukri: false, indeed: false },
 };
 
+const DEFAULT_SYSTEM_SETTINGS = {
+  examSettings: {
+    requireIdVerification: true,
+    questionCount: 20,
+    timeLimitMinutes: 15,
+  },
+};
+
 // ── System Settings ───────────────────────────────────────────────────────────
 
 export async function getSystemSettings() {
   const row = await dbGet(TABLE, { pk: 'SYSTEM' });
-  return row ?? {};
+  return {
+    ...DEFAULT_SYSTEM_SETTINGS,
+    ...(row ?? {}),
+    examSettings: { ...DEFAULT_SYSTEM_SETTINGS.examSettings, ...(row?.examSettings ?? {}) },
+  };
 }
 
 export async function updateSystemSettings(updates) {

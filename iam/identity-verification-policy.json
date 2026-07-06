@@ -1,0 +1,14 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "IdentityVerificationRekognitionTextract",
+            "Effect": "Allow",
+            "Action": [
+                "rekognition:CompareFaces",
+                "textract:AnalyzeID"
+            ],
+            "Resource": "*"
+        }
+    ]
+}
