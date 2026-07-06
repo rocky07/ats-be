@@ -21,6 +21,7 @@ export const provision = async (req, res) => {
     const settings = await getUserSettings(user.id);
     res.json({ user, settings });
   } catch (err) {
+    console.error('Provision error:', err);
     res.status(500).json({ error: err.message });
   }
 };
