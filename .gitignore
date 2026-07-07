@@ -2,3 +2,8 @@
 .env
 node_modules
 src/config/db.json
+.DS_Store
+.temp-read
+terraform.tfstate
+terraform.tfstate.backup
+*.log
