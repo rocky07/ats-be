@@ -7,6 +7,7 @@ export const fetchRequirements = () => dbScan(TABLE);
 export const addRequirement = async (requirement) => {
     const newRequirement = {
         id: Date.now().toString(),
+        openDate: new Date().toISOString().slice(0, 10),
         ...requirement,
     };
     await dbPut(TABLE, newRequirement);

@@ -4,6 +4,8 @@
  * Docs: https://learn.microsoft.com/en-us/linkedin/consumer/integrations/self-serve/sign-in-with-linkedin-v2
  */
 
+import { htmlToPlainText } from '../utils/htmlToPlainText.js';
+
 const CLIENT_ID     = process.env.LINKEDIN_CLIENT_ID     ?? '';
 const CLIENT_SECRET = process.env.LINKEDIN_CLIENT_SECRET ?? '';
 const REDIRECT_URI  = process.env.LINKEDIN_REDIRECT_URI  ?? 'http://localhost:3000/api/auth/linkedin/callback';
@@ -65,7 +67,7 @@ export async function getMemberProfile(accessToken) {
 export async function postJobToLinkedIn({ accessToken, linkedinUrn, requirement, applyUrl }) {
   const text =
     `🚀 We're hiring: ${requirement.title}\n\n` +
-    `${requirement.description ?? ''}\n\n` +
+    `${htmlToPlainText(requirement.description)}\n\n` +
     `📍 Department: ${requirement.department ?? 'N/A'}\n\n` +
     `Apply here 👉 ${applyUrl}\n\n` +
     `#hiring #jobs #recruitment`;

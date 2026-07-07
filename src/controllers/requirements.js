@@ -3,6 +3,7 @@ import { getUserSettings } from '../services/settingsService.js';
 import { postTextToLinkedIn, postJobToLinkedIn, FRONTEND_URL } from '../services/linkedinService.js';
 import { sendJdShare } from '../services/emailService.js';
 import { getVendors } from '../services/vendorService.js';
+import { htmlToPlainText } from '../utils/htmlToPlainText.js';
 
 const MAX_SHARE_RECIPIENTS = 20;
 
@@ -35,7 +36,7 @@ export const shareRequirement = async (req, res) => {
 
             const text =
                 `${message ? `${message}\n\n` : ''}` +
-                `${resolvedJdText}` +
+                `${htmlToPlainText(resolvedJdText)}` +
                 `${includeUploadLink ? `\n\nApply here 👉 ${applyUrl}` : ''}`;
 
             const post = await postTextToLinkedIn({ accessToken: li.accessToken, linkedinUrn: li.linkedinUrn, text });

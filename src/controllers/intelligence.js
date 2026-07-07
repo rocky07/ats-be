@@ -1,5 +1,6 @@
 import { getMarketIntelligence } from '../services/marketIntelligence.js';
 import { generateJobSummary, MissingApiKeyError } from '../services/aiSummary.js';
+import { parseRequirementText } from '../services/requirementParser.js';
 import { atsChatReply } from '../services/atsChat.js';
 import { rankCandidates } from '../services/rankCandidates.js';
 
@@ -70,5 +71,21 @@ export const jobSummary = async (req, res) => {
         }
         console.error('AI job summary error:', error);
         res.status(500).json({ error: 'Failed to generate job summary' });
+    }
+};
+
+// POST /api/intelligence/parse-requirement — parse pasted free-text into structured requirement fields.
+export const parseRequirement = async (req, res) => {
+    try {
+        const { text } = req.body;
+        if (!text?.trim()) return res.status(400).json({ error: 'text is required' });
+        const fields = await parseRequirementText(text);
+        res.json({ fields });
+    } catch (error) {
+        if (error instanceof MissingApiKeyError) {
+            return res.status(503).json({ error: error.message });
+        }
+        console.error('Requirement parse error:', error);
+        res.status(500).json({ error: 'Failed to parse requirement text' });
     }
 };
