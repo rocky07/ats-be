@@ -86,7 +86,7 @@ export const verifyExamIdentity = async (req, res) => {
 export const sendInvite = async (req, res) => {
     try {
         const { candidateId, candidateName, candidateEmail, examId, jobTitle } = req.body;
-        const baseUrl = process.env.APP_BASE_URL ?? 'http://localhost:5173';
+        const baseUrl = process.env.FRONTEND_URL ?? 'http://localhost:5173';
         const examUrl = `${baseUrl}/exam/${examId}?candidateId=${candidateId}&name=${encodeURIComponent(candidateName)}`;
 
         const result = await sendExamInvite({ candidateName, candidateEmail, examId, jobTitle, examUrl });
