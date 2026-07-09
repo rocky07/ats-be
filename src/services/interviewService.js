@@ -5,7 +5,7 @@ const PANEL_TABLE = 'BourntecATS-PanelMembers';
 
 const { MS_TENANT_ID, MS_CLIENT_ID, MS_CLIENT_SECRET, MS_ORGANIZER_EMAIL } = process.env;
 
-const MS_CONFIGURED = !!(MS_TENANT_ID && MS_CLIENT_ID && MS_CLIENT_SECRET && MS_ORGANIZER_EMAIL);
+export const MS_CONFIGURED = !!(MS_TENANT_ID && MS_CLIENT_ID && MS_CLIENT_SECRET && MS_ORGANIZER_EMAIL);
 
 // ── MS Graph auth ────────────────────────────────────────────────────────────
 async function getMsToken() {
@@ -39,7 +39,31 @@ async function graphFetch(path, options = {}) {
     const err = await res.text();
     throw new Error(`Graph API ${res.status}: ${err}`);
   }
-  return res.status === 204 ? null : res.json();
+  const text = await res.text();
+  return text ? JSON.parse(text) : null;
+}
+
+// ── Mail ───────────────────────────────────────────────────────────────────────
+export async function sendGraphMail({ to, cc, bcc, subject, html }) {
+  if (!MS_CONFIGURED) throw new Error('Microsoft Graph credentials not configured');
+
+  const toList = Array.isArray(to) ? to : [to];
+  const toRecipients = toList.map((address) => ({ emailAddress: { address } }));
+  const ccRecipients = (cc ?? []).map((address) => ({ emailAddress: { address } }));
+  const bccRecipients = (bcc ?? []).map((address) => ({ emailAddress: { address } }));
+
+  await graphFetch(`/users/${encodeURIComponent(MS_ORGANIZER_EMAIL)}/sendMail`, {
+    method: 'POST',
+    body: JSON.stringify({
+      message: {
+        subject,
+        body: { contentType: 'HTML', content: html },
+        toRecipients,
+        ...(ccRecipients.length ? { ccRecipients } : {}),
+        ...(bccRecipients.length ? { bccRecipients } : {}),
+      },
+    }),
+  });
 }
 
 // ── Conflict checking ─────────────────────────────────────────────────────────

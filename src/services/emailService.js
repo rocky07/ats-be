@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer';
+import { MS_CONFIGURED, sendGraphMail } from './interviewService.js';
 
 const transporter = nodemailer.createTransport({
     host: process.env.EMAIL_HOST ?? 'smtp.gmail.com',
@@ -10,14 +11,22 @@ const transporter = nodemailer.createTransport({
     },
 });
 
+const deliver = async ({ to, cc, bcc, subject, html }) => {
+    if (MS_CONFIGURED) {
+        await sendGraphMail({ to, cc, bcc, subject, html });
+        return;
+    }
+    const from = process.env.EMAIL_FROM ?? process.env.EMAIL_USER;
+    await transporter.sendMail({ from, to, cc, bcc, subject, html });
+};
+
 export const sendExamInvite = async ({ candidateName, candidateEmail, examId, jobTitle, examUrl }) => {
-    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-        console.warn('[email] EMAIL_USER / EMAIL_PASS not set — skipping send, logging instead');
+    if (!process.env.MS_ORGANIZER_EMAIL && (!process.env.EMAIL_USER || !process.env.EMAIL_PASS)) {
+        console.warn('[email] Neither Microsoft Graph nor EMAIL_USER / EMAIL_PASS configured — skipping send, logging instead');
         console.log(`[email] To: ${candidateEmail} | Exam URL: ${examUrl}`);
         return { skipped: true, examUrl };
     }
 
-    const from = process.env.EMAIL_FROM ?? process.env.EMAIL_USER;
     const html = `
     <div style="font-family:sans-serif;max-width:600px;margin:auto">
       <h2>You've been invited to complete an L1 assessment</h2>
@@ -34,8 +43,7 @@ export const sendExamInvite = async ({ candidateName, candidateEmail, examId, jo
       <p style="color:#999;font-size:11px">Bourntec ATS — This is an automated message.</p>
     </div>`;
 
-    await transporter.sendMail({
-        from,
+    await deliver({
         to: candidateEmail,
         subject: `L1 Assessment — ${jobTitle}`,
         html,
@@ -45,13 +53,13 @@ export const sendExamInvite = async ({ candidateName, candidateEmail, examId, jo
 };
 
 export const sendJdShare = async ({ toEmails, jobTitle, jdText, applyUrl, includeJd, includeUploadLink, message, senderName }) => {
-    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-        console.warn('[email] EMAIL_USER / EMAIL_PASS not set — skipping send, logging instead');
+    if (!process.env.MS_ORGANIZER_EMAIL && (!process.env.EMAIL_USER || !process.env.EMAIL_PASS)) {
+        console.warn('[email] Neither Microsoft Graph nor EMAIL_USER / EMAIL_PASS configured — skipping send, logging instead');
         console.log(`[email] To: ${toEmails.join(', ')} | JD Share: ${jobTitle}`);
         return { skipped: true };
     }
 
-    const from = process.env.EMAIL_FROM ?? process.env.EMAIL_USER;
+    const from = process.env.MS_ORGANIZER_EMAIL ?? process.env.EMAIL_FROM ?? process.env.EMAIL_USER;
     const html = `
     <div style="font-family:sans-serif;max-width:600px;margin:auto">
       <h2>Job Opening: ${jobTitle}</h2>
@@ -67,8 +75,7 @@ export const sendJdShare = async ({ toEmails, jobTitle, jdText, applyUrl, includ
       <p style="color:#999;font-size:11px">Shared by ${senderName ?? 'Bourntec ATS'} — This is an automated message.</p>
     </div>`;
 
-    await transporter.sendMail({
-        from,
+    await deliver({
         to: from,
         bcc: toEmails,
         subject: `Job Opening — ${jobTitle}`,
