@@ -82,10 +82,11 @@ export async function checkConflicts(attendeeEmails, startISO, endISO) {
   );
 
   const conflicts = [];
-  for (const r of results) {
+  results.forEach((r, i) => {
+    const email = attendeeEmails[i];
     if (r.status === 'fulfilled' && r.value.events.length > 0) {
       conflicts.push({
-        email: r.value.email,
+        email,
         events: r.value.events.map((e) => ({
           subject: e.subject,
           start: e.start.dateTime,
@@ -93,9 +94,9 @@ export async function checkConflicts(attendeeEmails, startISO, endISO) {
         })),
       });
     } else if (r.status === 'rejected') {
-      conflicts.push({ email: r.reason?.message ?? 'unknown', accessError: true });
+      conflicts.push({ email, accessError: true });
     }
-  }
+  });
   return { configured: true, conflicts };
 }
 
