@@ -4,6 +4,7 @@ import {
     getCandidates,
     getCandidate,
     createCandidate,
+    updateCandidate,
     uploadResume,
     reparseResume,
     removeCandidate,
@@ -22,6 +23,7 @@ const upload = multer({
 router.get('/', getCandidates);
 router.get('/:id', getCandidate);
 router.post('/', createCandidate);
+router.put('/:id', updateCandidate);
 router.post('/upload', upload.single('resume'), uploadResume);
 router.post('/:id/reparse', reparseResume);
 router.delete('/:id', removeCandidate);

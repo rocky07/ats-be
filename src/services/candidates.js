@@ -29,6 +29,14 @@ export const addCandidate = async (candidate) => {
     return newCandidate;
 };
 
+export const updateCandidate = async (id, updates) => {
+    const existing = await dbGet(TABLE, { id });
+    if (!existing) return null;
+    const updated = { ...existing, ...updates, id: existing.id };
+    await dbPut(TABLE, updated);
+    return updated;
+};
+
 export const deleteCandidate = async (id) => {
     const existing = await dbGet(TABLE, { id });
     if (!existing) return null;

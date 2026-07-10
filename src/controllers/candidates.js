@@ -33,6 +33,17 @@ export const createCandidate = async (req, res) => {
     }
 };
 
+export const updateCandidate = async (req, res) => {
+    try {
+        const candidate = await candidatesService.updateCandidate(req.params.id, req.body);
+        if (!candidate) return res.status(404).json({ error: 'Candidate not found' });
+        res.json(candidate);
+    } catch (error) {
+        console.error('Error updating candidate:', error);
+        res.status(500).json({ error: 'Failed to update candidate' });
+    }
+};
+
 export const uploadResume = async (req, res) => {
     try {
         if (!req.file) return res.status(400).json({ error: 'No resume file uploaded' });

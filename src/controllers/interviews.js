@@ -5,6 +5,7 @@ import {
   upsertPanelMember,
   deletePanelMember,
   saveInterview,
+  updateInterview,
   getInterviewsByCandidate,
 } from '../services/interviewService.js';
 
@@ -60,6 +61,9 @@ export const scheduleInterview = async (req, res) => {
       startISO,
       endISO,
       notes,
+      meetingId,
+      interviewId,
+      existingTeamsLink,
     } = req.body;
 
     if (!startISO || !endISO || !panelEmails?.length)
@@ -68,9 +72,9 @@ export const scheduleInterview = async (req, res) => {
     const subject = `Interview: ${candidateName ?? 'Candidate'} — ${jobTitle ?? 'Position'}`;
     const attendeeEmails = [...new Set([candidateEmail, ...panelEmails].filter(Boolean))];
 
-    const meeting = await scheduleTeamsMeeting({ subject, attendeeEmails, startISO, endISO, notes });
+    const meeting = await scheduleTeamsMeeting({ subject, attendeeEmails, startISO, endISO, notes, meetingId, existingTeamsLink });
 
-    const record = await saveInterview({
+    const recordFields = {
       candidateId,
       candidateName,
       candidateEmail,
@@ -83,7 +87,11 @@ export const scheduleInterview = async (req, res) => {
       teamsLink: meeting.teamsLink,
       meetingId: meeting.id,
       mock: meeting.mock,
-    });
+    };
+
+    const record = interviewId
+      ? (await updateInterview(interviewId, recordFields)) ?? (await saveInterview(recordFields))
+      : await saveInterview(recordFields);
 
     res.json({ meeting, record });
   } catch (err) {

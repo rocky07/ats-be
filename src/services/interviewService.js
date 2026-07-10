@@ -1,4 +1,4 @@
-import { dbScan, dbPut, dbDelete, dbQuery } from '../config/dynamodb.js';
+import { dbScan, dbGet, dbPut, dbDelete, dbQuery } from '../config/dynamodb.js';
 
 const INTERVIEWS_TABLE = 'BourntecATS-Interviews';
 const PANEL_TABLE = 'BourntecATS-PanelMembers';
@@ -101,13 +101,15 @@ export async function checkConflicts(attendeeEmails, startISO, endISO) {
 }
 
 // ── Schedule Teams meeting ────────────────────────────────────────────────────
-export async function scheduleTeamsMeeting({ subject, attendeeEmails, startISO, endISO, notes = '' }) {
+// Pass `meetingId` (from a previous booking) to update that event in place — same
+// Teams link, calendar entry, and attendee thread — instead of creating a new one.
+export async function scheduleTeamsMeeting({ subject, attendeeEmails, startISO, endISO, notes = '', meetingId, existingTeamsLink }) {
   if (!MS_CONFIGURED) {
-    const mockId = `mock-${Date.now()}`;
-    console.log(`[interviewService] MS Graph not configured — mock meeting created: ${mockId}`);
+    const mockId = meetingId ?? `mock-${Date.now()}`;
+    console.log(`[interviewService] MS Graph not configured — mock meeting ${meetingId ? 'updated' : 'created'}: ${mockId}`);
     return {
       id: mockId,
-      teamsLink: `https://teams.microsoft.com/l/meetup-join/mock/${mockId}`,
+      teamsLink: existingTeamsLink ?? `https://teams.microsoft.com/l/meetup-join/mock/${mockId}`,
       webLink: null,
       subject,
       start: startISO,
@@ -116,15 +118,44 @@ export async function scheduleTeamsMeeting({ subject, attendeeEmails, startISO, 
     };
   }
 
+  const attendees = attendeeEmails.map((email) => ({
+    emailAddress: { address: email },
+    type: 'required',
+  }));
+
+  if (meetingId) {
+    // Online-meeting fields are immutable after creation — only resend the fields that can change.
+    const updated = await graphFetch(
+      `/users/${encodeURIComponent(MS_ORGANIZER_EMAIL)}/events/${encodeURIComponent(meetingId)}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify({
+          subject,
+          body: { contentType: 'HTML', content: notes || `Interview scheduled via Bourntec ATS` },
+          start: { dateTime: startISO, timeZone: 'UTC' },
+          end: { dateTime: endISO, timeZone: 'UTC' },
+          attendees,
+        }),
+      },
+    );
+
+    return {
+      id: updated.id,
+      teamsLink: updated.onlineMeeting?.joinUrl ?? existingTeamsLink ?? null,
+      webLink: updated.webLink ?? null,
+      subject: updated.subject,
+      start: updated.start.dateTime,
+      end: updated.end.dateTime,
+      mock: false,
+    };
+  }
+
   const event = {
     subject,
     body: { contentType: 'HTML', content: notes || `Interview scheduled via Bourntec ATS` },
     start: { dateTime: startISO, timeZone: 'UTC' },
     end: { dateTime: endISO, timeZone: 'UTC' },
-    attendees: attendeeEmails.map((email) => ({
-      emailAddress: { address: email },
-      type: 'required',
-    })),
+    attendees,
     isOnlineMeeting: true,
     onlineMeetingProvider: 'teamsForBusiness',
   };
@@ -177,6 +208,14 @@ export async function saveInterview(record) {
   const interview = { id: Date.now().toString(), scheduledAt: new Date().toISOString(), ...record };
   await dbPut(INTERVIEWS_TABLE, interview);
   return interview;
+}
+
+export async function updateInterview(id, updates) {
+  const existing = await dbGet(INTERVIEWS_TABLE, { id });
+  if (!existing) return null;
+  const updated = { ...existing, ...updates, id: existing.id };
+  await dbPut(INTERVIEWS_TABLE, updated);
+  return updated;
 }
 
 export async function getInterviewsByCandidate(candidateId) {
