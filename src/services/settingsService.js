@@ -1,4 +1,4 @@
-import { dbGet, dbPut } from '../config/dynamodb.js';
+import { dbGet, dbPut, dbScan } from '../config/dynamodb.js';
 
 const TABLE = 'BourntecATS-Settings';
 
@@ -60,6 +60,15 @@ export async function getPublicSystemSettings() {
 export async function getUserSettings(userId) {
   const row = await dbGet(TABLE, { pk: `USER#${userId}` });
   return { ...DEFAULT_USER_SETTINGS, ...(row ?? {}), userId };
+}
+
+// For anonymous/public flows (e.g. the public apply link) there's no logged-in
+// user to scope settings to. This app is single-tenant, so we fall back to
+// whichever user row has settings saved — first match wins.
+export async function getAnyUserSettings() {
+  const rows = await dbScan(TABLE);
+  const userRow = rows.find((r) => typeof r.pk === 'string' && r.pk.startsWith('USER#'));
+  return { ...DEFAULT_USER_SETTINGS, ...(userRow ?? {}) };
 }
 
 export async function updateUserSettings(userId, updates) {

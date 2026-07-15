@@ -3,6 +3,8 @@ import multer from 'multer';
 import { dbGet, dbPut } from '../config/dynamodb.js';
 import { addCandidateFromResume, addCandidate, DuplicateCandidateError } from '../services/candidates.js';
 import { getPipeline, savePipeline } from '../services/pipelines.js';
+import { getAnyUserSettings } from '../services/settingsService.js';
+import { rankCandidates } from '../services/rankCandidates.js';
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -15,6 +17,31 @@ function meetsMustHaves(mustHaves = [], skillExperience = {}) {
 }
 
 const RECAPTCHA_SECRET = process.env.RECAPTCHA_SECRET_KEY ?? '';
+
+// Drop a newly-applied candidate into a requirement's pipeline. If auto-rank is
+// enabled, score them with Claude immediately and place them in Ranked instead
+// of Ingested; falls back to Ingested (unscored) on any ranking failure.
+async function addToPipeline(reqId, candidate, requirement, aiSettings) {
+  const stages = await getPipeline(reqId);
+  const alreadyIn = Object.values(stages).some((stage) =>
+    stage.some((c) => String(c?.id ?? c) === String(candidate.id)),
+  );
+  if (alreadyIn) return;
+
+  if (aiSettings?.enableAutoRankIngested) {
+    try {
+      const [result] = await rankCandidates([candidate], requirement);
+      stages.ranked.push({ ...candidate, score: result?.score, rankSummary: result?.summary });
+      await savePipeline(reqId, stages);
+      return;
+    } catch (err) {
+      console.error('Auto-rank on apply failed, falling back to Ingested:', err.message);
+    }
+  }
+
+  stages.ingested.push(candidate);
+  await savePipeline(reqId, stages);
+}
 
 async function verifyCaptcha(token) {
   if (!RECAPTCHA_SECRET) return true;
@@ -63,12 +90,15 @@ router.post('/jobs/:reqId/apply', upload.single('resume'), async (req, res) => {
     // ignore malformed payload, treated as no experience declared
   }
   const qualifies = meetsMustHaves(requirement.mustHaves, skillExperience);
+  const userSettings = await getAnyUserSettings();
+  const aiSettings = userSettings?.aiSettings;
 
   try {
     let candidate;
 
     if (req.file) {
-      candidate = await addCandidateFromResume(req.file);
+      const useAI = aiSettings?.enableAIResumeParsing === true;
+      candidate = await addCandidateFromResume(req.file, useAI);
       if (req.body.name)  candidate.name  = req.body.name;
       if (req.body.email) candidate.email = req.body.email;
     } else if (req.body.name && req.body.email) {
@@ -86,12 +116,7 @@ router.post('/jobs/:reqId/apply', upload.single('resume'), async (req, res) => {
     await dbPut(CANDIDATES_TABLE, candidate);
 
     if (qualifies) {
-      const stages = await getPipeline(reqId);
-      const alreadyIn = stages.ingested.some((c) => String(c?.id ?? c) === String(candidate.id));
-      if (!alreadyIn) {
-        stages.ingested.push(candidate);
-        await savePipeline(reqId, stages);
-      }
+      await addToPipeline(reqId, candidate, requirement, aiSettings);
     }
 
     res.status(201).json({
@@ -108,13 +133,8 @@ router.post('/jobs/:reqId/apply', upload.single('resume'), async (req, res) => {
       existing.qualifiesMustHaves = qualifies;
       await dbPut(CANDIDATES_TABLE, existing);
 
-      if (qualifies) {
-        const stages = await getPipeline(reqId);
-        const alreadyIn = stages.ingested.some((c) => String(c?.id ?? c) === String(existing?.id));
-        if (existing?.id && !alreadyIn) {
-          stages.ingested.push(existing);
-          await savePipeline(reqId, stages);
-        }
+      if (qualifies && existing?.id) {
+        await addToPipeline(reqId, existing, requirement, aiSettings);
       }
       return res.status(200).json({
         ok: true,
