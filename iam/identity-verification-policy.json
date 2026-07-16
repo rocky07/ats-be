@@ -6,6 +6,7 @@
             "Effect": "Allow",
             "Action": [
                 "rekognition:CompareFaces",
+                "rekognition:DetectFaces",
                 "textract:AnalyzeID"
             ],
             "Resource": "*"

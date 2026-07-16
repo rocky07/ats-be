@@ -20,6 +20,7 @@ const PUBLIC_PATHS = [
   /^\/api\/exams\/[^/]+$/,
   /^\/api\/exams\/[^/]+\/submit$/,
   /^\/api\/exams\/[^/]+\/verify-identity$/,
+  /^\/api\/exams\/[^/]+\/monitor$/,
   /^\/api\/auth\/linkedin\/callback$/,
   /^\/api\/public\//,
 ];

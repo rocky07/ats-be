@@ -6,7 +6,7 @@ import {
     getSubmission,
 } from '../services/examService.js';
 import { sendExamInvite } from '../services/emailService.js';
-import { verifyIdentity } from '../services/verificationService.js';
+import { verifyIdentity, checkPresence } from '../services/verificationService.js';
 import { getSystemSettings } from '../services/settingsService.js';
 import { dbGet } from '../config/dynamodb.js';
 
@@ -48,13 +48,14 @@ export const fetchPublic = async (req, res) => {
 // POST /api/exams/:examId/submit — public: submit answers & get score
 export const submit = async (req, res) => {
     try {
-        const { candidateId, candidateName, answers, timeTaken } = req.body;
+        const { candidateId, candidateName, answers, timeTaken, proctoringFlags } = req.body;
         const submission = await submitExam({
             examId: req.params.examId,
             candidateId,
             candidateName,
             answers,
             timeTaken,
+            proctoringFlags,
         });
         res.json(submission);
     } catch (err) {
@@ -79,6 +80,18 @@ export const verifyExamIdentity = async (req, res) => {
     } catch (err) {
         console.error('Identity verification error:', err);
         res.status(err.message?.includes('required') ? 400 : 500).json({ error: err.message ?? 'Verification failed' });
+    }
+};
+
+// POST /api/exams/:examId/monitor — public: periodic in-exam presence check (every ~1 min)
+export const monitorExam = async (req, res) => {
+    try {
+        const { referenceImageBase64, currentImageBase64 } = req.body;
+        const result = await checkPresence({ referenceImageBase64, currentImageBase64 });
+        res.json(result);
+    } catch (err) {
+        console.error('Exam monitoring error:', err);
+        res.status(err.message?.includes('required') ? 400 : 500).json({ error: err.message ?? 'Monitoring check failed' });
     }
 };
 
