@@ -1,9 +1,26 @@
 import * as requirementsService from '../services/requirements.js';
-import { getUserSettings } from '../services/settingsService.js';
+import { getUserSettings, getSystemSettings } from '../services/settingsService.js';
 import { postTextToLinkedIn, postJobToLinkedIn, FRONTEND_URL } from '../services/linkedinService.js';
+import { notifyGoogleIndexing } from '../services/googleIndexingService.js';
 import { sendJdShare } from '../services/emailService.js';
 import { getVendors } from '../services/vendorService.js';
 import { htmlToPlainText } from '../utils/htmlToPlainText.js';
+
+// Fire-and-forget: tell Google to (re)crawl or drop the public apply page for this
+// job, if the admin has enabled + auto-posting turned on for the Google job board.
+async function notifyGoogleForRequirement(requirement, type) {
+    try {
+        const { jobBoards } = await getSystemSettings();
+        const google = jobBoards?.google;
+        if (!google?.enabled || !google?.autoPost || !google?.serviceAccountKeyJson) return;
+
+        const url = `${FRONTEND_URL}/apply/${requirement.id}`;
+        await notifyGoogleIndexing({ serviceAccountKeyJson: google.serviceAccountKeyJson, url, type });
+        console.log(`Google Indexing API: ${type} for requirement ${requirement.id}`);
+    } catch (err) {
+        console.error('Google Indexing API notification failed:', err.message);
+    }
+}
 
 const MAX_SHARE_RECIPIENTS = 20;
 
@@ -81,6 +98,13 @@ export const editRequirement = async (req, res) => {
         const updated = await requirementsService.updateRequirement(req.params.id, req.body);
         if (!updated) return res.status(404).json({ error: 'Requirement not found' });
         res.json(updated);
+
+        // Fire-and-forget: keep Google's index in sync with this job's status.
+        if (updated.status === 'closed') {
+            notifyGoogleForRequirement(updated, 'URL_DELETED');
+        } else if (updated.status === 'open') {
+            notifyGoogleForRequirement(updated, 'URL_UPDATED');
+        }
     } catch (error) {
         console.error('Error updating requirement:', error);
         res.status(500).json({ error: 'Failed to update requirement' });
@@ -123,6 +147,11 @@ export const createRequirement = async (req, res) => {
                     });
                 }
             }
+        }
+
+        // Fire-and-forget: notify Google's index for a newly-created open job.
+        if ((requirement.status ?? 'open') === 'open') {
+            notifyGoogleForRequirement(requirement, 'URL_UPDATED');
         }
     } catch (error) {
         console.error('Error creating requirement:', error);

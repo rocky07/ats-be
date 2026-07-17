@@ -61,8 +61,8 @@ router.get('/jobs/:reqId', async (req, res) => {
   if (req_.status && req_.status !== 'open') {
     return res.status(410).json({ error: 'This position is no longer accepting applications' });
   }
-  const { id, title, department, description, openDate, mustHaves } = req_;
-  res.json({ id, title, department, description, openDate, mustHaves: mustHaves ?? [] });
+  const { id, title, department, description, openDate, mustHaves, location, workMode, jobType } = req_;
+  res.json({ id, title, department, description, openDate, mustHaves: mustHaves ?? [], location, workMode, jobType });
 });
 
 // POST /api/public/jobs/:reqId/apply  — public resume submission
