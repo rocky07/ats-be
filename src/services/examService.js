@@ -91,7 +91,7 @@ export const getExamPublic = async (requirementId) => {
 
 // ── Submit ────────────────────────────────────────────────────────────────────
 
-export const submitExam = async ({ examId, candidateId, candidateName, answers, timeTaken }) => {
+export const submitExam = async ({ examId, candidateId, candidateName, answers, timeTaken, proctoringFlags }) => {
     // examId is the requirementId (PK of exams table)
     const exam = await dbGet(EXAMS_TABLE, { requirementId: examId });
     if (!exam) throw new Error('Exam not found');
@@ -113,6 +113,7 @@ export const submitExam = async ({ examId, candidateId, candidateName, answers, 
         total,
         score,
         timeTaken,
+        proctoringFlags: proctoringFlags ?? [],
         submittedAt: new Date().toISOString(),
     };
 

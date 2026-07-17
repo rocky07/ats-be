@@ -1,4 +1,4 @@
-import { RekognitionClient, CompareFacesCommand } from '@aws-sdk/client-rekognition';
+import { RekognitionClient, CompareFacesCommand, DetectFacesCommand } from '@aws-sdk/client-rekognition';
 import { TextractClient, AnalyzeIDCommand } from '@aws-sdk/client-textract';
 
 const REGION = process.env.AWS_REGION ?? 'us-east-2';
@@ -69,4 +69,42 @@ export const verifyIdentity = async ({ selfieImageBase64, idImageBase64, candida
         extractedName,
         nameMatch,
     };
+};
+
+// Periodic in-exam proctoring check: given the candidate's verified reference
+// selfie and a fresh webcam capture, confirm the same person is still alone at
+// the screen. Returns a single `reason` describing the first problem found.
+export const checkPresence = async ({ referenceImageBase64, currentImageBase64 }) => {
+    if (!referenceImageBase64 || !currentImageBase64) {
+        throw new Error('Reference and current images are required');
+    }
+
+    const currentBytes = b64ToBytes(currentImageBase64);
+
+    const detectResult = await rekognition.send(new DetectFacesCommand({
+        Image: { Bytes: currentBytes },
+    }));
+    const faceCount = detectResult.FaceDetails?.length ?? 0;
+
+    if (faceCount === 0) {
+        return { ok: false, reason: 'no_face', faceCount };
+    }
+    if (faceCount > 1) {
+        return { ok: false, reason: 'multiple_faces', faceCount };
+    }
+
+    const referenceBytes = b64ToBytes(referenceImageBase64);
+    const compareResult = await rekognition.send(new CompareFacesCommand({
+        SourceImage: { Bytes: referenceBytes },
+        TargetImage: { Bytes: currentBytes },
+        SimilarityThreshold: 0,
+    }));
+    const bestMatch = (compareResult.FaceMatches ?? []).sort((a, b) => b.Similarity - a.Similarity)[0];
+    const similarity = bestMatch?.Similarity ?? 0;
+
+    if (similarity < SIMILARITY_THRESHOLD) {
+        return { ok: false, reason: 'face_mismatch', similarity: Math.round(similarity * 10) / 10, faceCount };
+    }
+
+    return { ok: true, similarity: Math.round(similarity * 10) / 10, faceCount };
 };
