@@ -5,16 +5,26 @@ import {
   updateUserSettings,
 } from '../services/settingsService.js';
 
+// Secrets/infra config must only ever come from process.env, never be stored
+// in or served from the DB — strip them defensively on both read and write so
+// this endpoint can't be used to exfiltrate or overwrite them.
+const SECRET_FIELDS = ['anthropicApiKey', 'msGraph', 'cognito'];
+const omitSecretFields = (obj = {}) => {
+  const clean = { ...obj };
+  for (const key of SECRET_FIELDS) delete clean[key];
+  return clean;
+};
+
 // GET /api/settings/system  — admin only
 export const getSystem = async (req, res) => {
   if (req.user?.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
-  res.json(await getSystemSettings());
+  res.json(omitSecretFields(await getSystemSettings()));
 };
 
 // PATCH /api/settings/system  — admin only
 export const patchSystem = async (req, res) => {
   if (req.user?.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
-  res.json(await updateSystemSettings(req.body));
+  res.json(omitSecretFields(await updateSystemSettings(omitSecretFields(req.body))));
 };
 
 // GET /api/settings/user  — returns own settings
