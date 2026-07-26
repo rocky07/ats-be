@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import multer from 'multer';
-import { dbGet, dbPut } from '../config/dynamodb.js';
+import { dbGet, dbPut, dbScan } from '../config/dynamodb.js';
 import { addCandidateFromResume, addCandidate, DuplicateCandidateError } from '../services/candidates.js';
 import { getPipeline, savePipeline } from '../services/pipelines.js';
 import { getAnyUserSettings } from '../services/settingsService.js';
@@ -54,6 +54,18 @@ async function verifyCaptcha(token) {
   return data.success === true;
 }
 
+// GET /api/public/jobs  — public list of open jobs, for career-site widgets/listings
+router.get('/jobs', async (req, res) => {
+  const all = await dbScan('BourntecATS-Requirements');
+  const open = all
+    .filter((r) => !r.status || r.status === 'open')
+    .map(({ id, title, department, openDate, location, workMode, jobType, regions }) => ({
+      id, title, department, openDate, location, workMode, jobType, regions: regions ?? [],
+    }))
+    .sort((a, b) => (b.openDate ?? '').localeCompare(a.openDate ?? ''));
+  res.json(open);
+});
+
 // GET /api/public/jobs/:reqId  — public job detail for the apply page
 router.get('/jobs/:reqId', async (req, res) => {
   const req_ = await dbGet('BourntecATS-Requirements', { id: String(req.params.reqId) });
@@ -61,8 +73,8 @@ router.get('/jobs/:reqId', async (req, res) => {
   if (req_.status && req_.status !== 'open') {
     return res.status(410).json({ error: 'This position is no longer accepting applications' });
   }
-  const { id, title, department, description, openDate, mustHaves } = req_;
-  res.json({ id, title, department, description, openDate, mustHaves: mustHaves ?? [] });
+  const { id, title, department, description, openDate, mustHaves, location, workMode, jobType } = req_;
+  res.json({ id, title, department, description, openDate, mustHaves: mustHaves ?? [], location, workMode, jobType });
 });
 
 // POST /api/public/jobs/:reqId/apply  — public resume submission
