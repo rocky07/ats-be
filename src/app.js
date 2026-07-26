@@ -1,5 +1,7 @@
 import express from 'express';
 import cors from 'cors';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 import { authMiddleware } from './middleware/auth.js';
 import authRouter from './routes/auth.js';
 import settingsRouter from './routes/settings.js';
@@ -14,12 +16,17 @@ import vendorsRouter from './routes/vendors.js';
 import dashboardRouter from './routes/dashboard.js';
 import publicRouter from './routes/public.js';
 
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
 const app = express();
 
 app.use(cors());
 // Raised from the 100kb default — identity verification posts base64-encoded
 // selfie + ID document photos, which can run several MB each.
 app.use(express.json({ limit: '15mb' }));
+
+// Static embeddable widgets (e.g. the careers-page open-jobs widget) — public, no auth.
+app.use('/public-widget', express.static(join(__dirname, '..', 'public-widget')));
 
 // Public routes (no auth required) — before auth middleware
 app.use('/api/public', publicRouter);
