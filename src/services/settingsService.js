@@ -15,6 +15,7 @@ const DEFAULT_USER_SETTINGS = {
   defaultRegion: 'global',
   language: 'en',
   personalLinkedin: { enabled: false, accessToken: '', clientId: '', clientSecret: '' },
+  personalOutlook: { enabled: false, accessToken: '', refreshToken: '', outlookEmail: '', outlookName: '', connectedAt: null, lastSyncAt: null },
   jobBoardToggles: { linkedinCompany: false, linkedinJobs: false, monster: false, naukri: false, indeed: false },
 };
 

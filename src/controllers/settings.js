@@ -4,6 +4,7 @@ import {
   getUserSettings,
   updateUserSettings,
 } from '../services/settingsService.js';
+import { syncOutlookInbox } from '../services/outlookIngestionService.js';
 
 // Secrets/infra config must only ever come from process.env, never be stored
 // in or served from the DB — strip them defensively on both read and write so
@@ -50,4 +51,16 @@ export const patchExam = async (req, res) => {
   if (req.user?.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
   const { examSettings } = await updateSystemSettings({ examSettings: req.body });
   res.json(examSettings);
+};
+
+// POST /api/settings/outlook/sync  — on-demand ingestion of the caller's own
+// connected Outlook mailbox (personalOutlook, connected via GET /auth/outlook)
+export const postOutlookSync = async (req, res) => {
+  try {
+    const result = await syncOutlookInbox(req.user.id);
+    res.json(result);
+  } catch (error) {
+    console.error('Outlook sync error:', error);
+    res.status(400).json({ error: error.message });
+  }
 };

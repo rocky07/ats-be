@@ -14,6 +14,7 @@ import examsRouter from './routes/exams.js';
 import interviewsRouter from './routes/interviews.js';
 import vendorsRouter from './routes/vendors.js';
 import dashboardRouter from './routes/dashboard.js';
+import notificationsRouter from './routes/notifications.js';
 import publicRouter from './routes/public.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -47,5 +48,6 @@ app.use('/api/exams', examsRouter);
 app.use('/api/interviews', interviewsRouter);
 app.use('/api/vendors', vendorsRouter);
 app.use('/api/dashboard', dashboardRouter);
+app.use('/api/notifications', notificationsRouter);
 
 export default app;

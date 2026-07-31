@@ -1,5 +1,9 @@
 import { Router } from 'express';
-import { provision, devLoginHandler, devRegister, me, getUsers, authConfig, linkedinConnect, linkedinCallback, linkedinDisconnect } from '../controllers/auth.js';
+import {
+  provision, devLoginHandler, devRegister, me, getUsers, authConfig,
+  linkedinConnect, linkedinCallback, linkedinDisconnect,
+  outlookConnect, outlookCallback, outlookDisconnect,
+} from '../controllers/auth.js';
 import { authMiddleware } from '../middleware/auth.js';
 
 const router = Router();
@@ -16,5 +20,11 @@ router.get('/users', getUsers);              // admin only
 router.get('/linkedin', authMiddleware, linkedinConnect);
 router.get('/linkedin/callback', linkedinCallback);    // LinkedIn redirects here — no app token yet
 router.delete('/linkedin', authMiddleware, linkedinDisconnect);
+
+// Personal Outlook OAuth — same pattern: /outlook/callback must be public since
+// Microsoft redirects here with no app token yet
+router.get('/outlook', authMiddleware, outlookConnect);
+router.get('/outlook/callback', outlookCallback);
+router.delete('/outlook', authMiddleware, outlookDisconnect);
 
 export default router;

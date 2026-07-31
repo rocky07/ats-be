@@ -25,7 +25,7 @@ async function getMsToken() {
   return data.access_token;
 }
 
-async function graphFetch(path, options = {}) {
+export async function graphFetch(path, options = {}) {
   const token = await getMsToken();
   const res = await fetch(`https://graph.microsoft.com/v1.0${path}`, {
     ...options,

@@ -8,6 +8,12 @@ import {
 } from '../services/authService.js';
 import { getUserSettings, updateUserSettings } from '../services/settingsService.js';
 import { buildAuthUrl, exchangeCode, getMemberProfile, FRONTEND_URL } from '../services/linkedinService.js';
+import {
+  buildAuthUrl as buildMsAuthUrl,
+  exchangeCode as exchangeMsCode,
+  getMe as getMsProfile,
+  MS_OAUTH_CONFIGURED,
+} from '../services/msOauthService.js';
 import crypto from 'crypto';
 
 const COGNITO_CONFIGURED = !!(process.env.COGNITO_USER_POOL_ID && process.env.COGNITO_CLIENT_ID);
@@ -131,6 +137,72 @@ export const linkedinDisconnect = async (req, res) => {
       linkedinName:  '',
       linkedinEmail: '',
       connectedAt:   null,
+    },
+  });
+  res.json({ ok: true });
+};
+
+// ── Personal Outlook OAuth (delegated Microsoft Graph — Mail.Read) ────────────
+
+const msOauthStates = new Map();
+
+export const outlookConnect = (req, res) => {
+  if (!MS_OAUTH_CONFIGURED) {
+    return res.status(400).json({ error: 'Microsoft OAuth is not configured' });
+  }
+  const state = crypto.randomBytes(16).toString('hex');
+  msOauthStates.set(state, { userId: req.user.id, expiresAt: Date.now() + 10 * 60 * 1000 });
+  res.redirect(buildMsAuthUrl(state));
+};
+
+export const outlookCallback = async (req, res) => {
+  const { code, state, error } = req.query;
+
+  if (error) {
+    return res.redirect(`${FRONTEND_URL}/settings?outlook=denied`);
+  }
+
+  const stateData = msOauthStates.get(state);
+  if (!stateData || Date.now() > stateData.expiresAt) {
+    return res.redirect(`${FRONTEND_URL}/settings?outlook=error&reason=state`);
+  }
+  msOauthStates.delete(state);
+
+  try {
+    const tokens = await exchangeMsCode(code);
+    const profile = await getMsProfile(tokens.access_token);
+
+    await updateUserSettings(stateData.userId, {
+      personalOutlook: {
+        enabled:      true,
+        accessToken:  tokens.access_token,
+        refreshToken: tokens.refresh_token ?? '',
+        tokenExpiry:  Date.now() + (tokens.expires_in ?? 3600) * 1000,
+        outlookEmail: profile.mail || profile.userPrincipalName || '',
+        outlookName:  profile.displayName || '',
+        connectedAt:  new Date().toISOString(),
+        lastSyncAt:   null,
+      },
+    });
+
+    res.redirect(`${FRONTEND_URL}/settings?outlook=connected`);
+  } catch (err) {
+    console.error('Outlook callback error:', err.message);
+    res.redirect(`${FRONTEND_URL}/settings?outlook=error&reason=token`);
+  }
+};
+
+export const outlookDisconnect = async (req, res) => {
+  await updateUserSettings(req.user.id, {
+    personalOutlook: {
+      enabled:      false,
+      accessToken:  '',
+      refreshToken: '',
+      tokenExpiry:  null,
+      outlookEmail: '',
+      outlookName:  '',
+      connectedAt:  null,
+      lastSyncAt:   null,
     },
   });
   res.json({ ok: true });

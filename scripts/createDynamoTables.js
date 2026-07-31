@@ -124,6 +124,12 @@ const tables = [
     AttributeDefinitions: [{ AttributeName: 'name', AttributeType: 'S' }],
     BillingMode: 'PAY_PER_REQUEST',
   },
+  {
+    TableName: 'BourntecATS-Notifications',
+    KeySchema: [{ AttributeName: 'id', KeyType: 'HASH' }],
+    AttributeDefinitions: [{ AttributeName: 'id', AttributeType: 'S' }],
+    BillingMode: 'PAY_PER_REQUEST',
+  },
 ];
 
 async function main() {
