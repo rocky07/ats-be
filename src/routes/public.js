@@ -110,7 +110,7 @@ router.post('/jobs/:reqId/apply', upload.single('resume'), async (req, res) => {
 
     if (req.file) {
       const useAI = aiSettings?.enableAIResumeParsing === true;
-      candidate = await addCandidateFromResume(req.file, useAI);
+      candidate = await addCandidateFromResume(req.file, useAI, aiSettings?.model);
       if (req.body.name)  candidate.name  = req.body.name;
       if (req.body.email) candidate.email = req.body.email;
     } else if (req.body.name && req.body.email) {

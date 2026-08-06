@@ -63,8 +63,8 @@ const sameSkills = (a, b) => {
     return sa.length === sb.length && sa.every((s, i) => s === sb[i]);
 };
 
-export const addCandidateFromResume = async (file, useAI = false) => {
-    const parsed = await parseResume(file.buffer, file.mimetype, file.originalname, useAI);
+export const addCandidateFromResume = async (file, useAI = false, model) => {
+    const parsed = await parseResume(file.buffer, file.mimetype, file.originalname, useAI, model);
 
     const email = normalizeEmail(parsed.email);
     const phone = normalizePhone(parsed.phone);
@@ -122,7 +122,7 @@ export class NoResumeOnFileError extends Error {
 }
 
 // Re-parse a candidate's already-uploaded resume with Claude and merge the results in.
-export const reparseCandidateWithAI = async (id) => {
+export const reparseCandidateWithAI = async (id, model) => {
     const candidate = await dbGet(TABLE, { id });
     if (!candidate) return null;
     if (!candidate.resumeS3Key) throw new NoResumeOnFileError();
@@ -130,7 +130,7 @@ export const reparseCandidateWithAI = async (id) => {
     const buffer = await getResumeBuffer(candidate.resumeS3Key);
     const ext = candidate.resumeFile?.split('.').pop()?.toLowerCase();
     const mimetype = EXT_MIME[ext] ?? '';
-    const parsed = await parseResume(buffer, mimetype, candidate.resumeFile ?? '', true);
+    const parsed = await parseResume(buffer, mimetype, candidate.resumeFile ?? '', true, model);
 
     const updated = {
         ...candidate,

@@ -49,7 +49,8 @@ export const uploadResume = async (req, res) => {
         if (!req.file) return res.status(400).json({ error: 'No resume file uploaded' });
         const userSettings = await getUserSettings(req.user.id);
         const useAI = userSettings?.aiSettings?.enableAIResumeParsing === true;
-        const candidate = await candidatesService.addCandidateFromResume(req.file, useAI);
+        const model = userSettings?.aiSettings?.model;
+        const candidate = await candidatesService.addCandidateFromResume(req.file, useAI, model);
         res.status(201).json(candidate);
     } catch (error) {
         if (error instanceof DuplicateCandidateError) {
@@ -62,7 +63,9 @@ export const uploadResume = async (req, res) => {
 
 export const reparseResume = async (req, res) => {
     try {
-        const candidate = await candidatesService.reparseCandidateWithAI(req.params.id);
+        const userSettings = await getUserSettings(req.user.id);
+        const model = userSettings?.aiSettings?.model;
+        const candidate = await candidatesService.reparseCandidateWithAI(req.params.id, model);
         if (!candidate) return res.status(404).json({ error: 'Candidate not found' });
         res.json(candidate);
     } catch (error) {

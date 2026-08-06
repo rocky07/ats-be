@@ -15,7 +15,7 @@ const DEFAULT_USER_SETTINGS = {
   defaultRegion: 'global',
   language: 'en',
   personalLinkedin: { enabled: false, accessToken: '', clientId: '', clientSecret: '' },
-  personalOutlook: { enabled: false, accessToken: '', refreshToken: '', outlookEmail: '', outlookName: '', connectedAt: null, lastSyncAt: null },
+  personalOutlook: { enabled: false, accessToken: '', refreshToken: '', outlookEmail: '', outlookName: '', connectedAt: null, lastSyncAt: null, autoSyncEnabled: false },
   jobBoardToggles: { linkedinCompany: false, linkedinJobs: false, monster: false, naukri: false, indeed: false },
 };
 
@@ -70,6 +70,16 @@ export async function getAnyUserSettings() {
   const rows = await dbScan(TABLE);
   const userRow = rows.find((r) => typeof r.pk === 'string' && r.pk.startsWith('USER#'));
   return { ...DEFAULT_USER_SETTINGS, ...(userRow ?? {}) };
+}
+
+// Used by the Outlook auto-sync poller to find users who opted in, without
+// pulling every settings field (tokens included) for every user.
+export async function getUserIdsWithOutlookAutoSync() {
+  const rows = await dbScan(TABLE);
+  return rows
+    .filter((r) => typeof r.pk === 'string' && r.pk.startsWith('USER#'))
+    .filter((r) => r.personalOutlook?.enabled && r.personalOutlook?.autoSyncEnabled)
+    .map((r) => r.userId ?? r.pk.slice('USER#'.length));
 }
 
 export async function updateUserSettings(userId, updates) {

@@ -71,17 +71,21 @@ export const syncOutlookInbox = async (userId) => {
   const since = personalOutlook.lastSyncAt ?? new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
   const syncStartedAt = new Date().toISOString();
 
+  // Note: combining `hasAttachments eq true` with `receivedDateTime ge ...` in one
+  // $filter (plus $orderby) trips Graph's "InefficientFilter" error on mail search —
+  // filter by date server-side only, then check hasAttachments client-side below.
   const params = new URLSearchParams({
-    $filter: `hasAttachments eq true and receivedDateTime ge ${since}`,
+    $filter: `receivedDateTime ge ${since}`,
     $select: 'id,subject,from,receivedDateTime,hasAttachments',
     $top: '50',
     $orderby: 'receivedDateTime asc',
   });
 
-  const { value: messages = [] } = await graphFetchDelegated(
+  const { value: allMessages = [] } = await graphFetchDelegated(
     accessToken,
     `/me/mailFolders/Inbox/messages?${params.toString()}`,
   );
+  const messages = allMessages.filter((m) => m.hasAttachments);
 
   const existingCandidates = await dbScan(CANDIDATES_TABLE);
   const existingByEmail = new Map(

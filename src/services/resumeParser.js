@@ -86,13 +86,15 @@ const parseResumeBasic = (text) => {
   return { name, email, phone, skills };
 };
 
+const DEFAULT_AI_MODEL = 'claude-haiku-4-5-20251001';
+
 // AI-powered parse using Claude.
-const parseResumeWithAI = async (text) => {
+const parseResumeWithAI = async (text, model = DEFAULT_AI_MODEL) => {
   const { default: Anthropic } = await import('@anthropic-ai/sdk');
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
   const message = await client.messages.create({
-    model: 'claude-haiku-4-5-20251001',
+    model: model || DEFAULT_AI_MODEL,
     max_tokens: 2048,
     messages: [{
       role: 'user',
@@ -165,11 +167,11 @@ ${text.slice(0, 8000)}`,
 
 // Parse a resume file into a structured candidate record.
 // Pass useAI=true to use Claude; falls back to rule-based on any error.
-export const parseResume = async (buffer, mimetype, filename, useAI = false) => {
+export const parseResume = async (buffer, mimetype, filename, useAI = false, model = DEFAULT_AI_MODEL) => {
   const text = await extractText(buffer, mimetype, filename);
   if (useAI) {
     try {
-      return await parseResumeWithAI(text);
+      return await parseResumeWithAI(text, model);
     } catch (e) {
       console.warn('[resumeParser] AI parsing failed, falling back to basic:', e.message);
     }

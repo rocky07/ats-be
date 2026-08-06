@@ -159,7 +159,7 @@ export const outlookCallback = async (req, res) => {
   const { code, state, error } = req.query;
 
   if (error) {
-    return res.redirect(`${FRONTEND_URL}/settings?outlook=denied`);
+    return res.redirect(`${FRONTEND_URL}/settings?outlook=denied-${error}`);
   }
 
   const stateData = msOauthStates.get(state);
