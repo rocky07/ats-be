@@ -9,7 +9,10 @@ const EXT_MIME = {
 
 const TABLE = 'BourntecATS-Candidates';
 
-export const fetchCandidates = () => dbScan(TABLE);
+export const fetchCandidates = async (userId) => {
+    const all = await dbScan(TABLE);
+    return all.filter((c) => c.source !== 'Outlook' || c.ingestedByUserId === userId);
+};
 
 export const fetchCandidate = (id) => dbGet(TABLE, { id });
 

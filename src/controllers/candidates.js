@@ -4,7 +4,7 @@ import { getUserSettings } from '../services/settingsService.js';
 
 export const getCandidates = async (req, res) => {
     try {
-        const candidates = await candidatesService.fetchCandidates();
+        const candidates = await candidatesService.fetchCandidates(req.user.id);
         res.json(candidates);
     } catch (error) {
         console.error('Error fetching candidates:', error);

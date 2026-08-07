@@ -133,6 +133,12 @@ const looksLikeResume = (attachment) => {
   return RESUME_EXT_RE.test(name) || RESUME_MIME_RE.test(attachment.contentType ?? '');
 };
 
+// Second-pass gate on the parsed content: reject attachments that matched the
+// extension/MIME filter but clearly aren't resumes (invoices, offer letters,
+// contracts, ...) because no identity info or skills could be extracted.
+const looksLikeParsedResume = (parsed) =>
+  Boolean(parsed.email || parsed.phone) && Array.isArray(parsed.skills) && parsed.skills.length > 0;
+
 async function graphFetchDelegated(accessToken, path) {
   const res = await fetch(`${GRAPH_BASE}${path}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
@@ -235,6 +241,7 @@ export const syncOutlookInbox = async (userId) => {
         const mimetype = attachment.contentType || EXT_MIME[ext] || 'application/octet-stream';
 
         const parsed = await parseResume(buffer, mimetype, attachment.name, false);
+        if (!looksLikeParsedResume(parsed)) { skipped++; continue; }
         const email = normalizeEmail(parsed.email);
 
         if (email && existingByEmail.has(email)) { skipped++; continue; }
