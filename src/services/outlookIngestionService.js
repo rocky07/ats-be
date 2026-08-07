@@ -5,6 +5,7 @@ import { uploadResume as uploadToS3 } from './s3Service.js';
 import { parseResume } from './resumeParser.js';
 import { createNotification } from './notificationsService.js';
 import { getPipeline, savePipeline } from './pipelines.js';
+import { rankCandidates } from './rankCandidates.js';
 import { dbScan } from '../config/dynamodb.js';
 
 const CANDIDATES_TABLE = 'BourntecATS-Candidates';
@@ -104,16 +105,31 @@ If none of the requirements are a plausible match, return {"requirementId": null
   }
 };
 
-// Push a candidate into a requirement's pipeline "ingested" stage (no-op if
-// they're already in some stage of that pipeline).
-const injectIntoPipeline = async (requirementId, candidate) => {
-  const stages = await getPipeline(requirementId);
+// Push a candidate into a requirement's pipeline (no-op if they're already in
+// some stage of that pipeline). If auto-rank is enabled, score them with
+// Claude immediately and place them in Ranked instead of Ingested — same
+// behavior as a manually-ingested/public-apply candidate — falling back to
+// Ingested (unscored) on any ranking failure.
+const injectIntoPipeline = async (requirement, candidate, aiSettings) => {
+  const stages = await getPipeline(requirement.id);
   const alreadyIn = Object.values(stages).some((stage) =>
     stage.some((c) => String(c?.id ?? c) === String(candidate.id)),
   );
   if (alreadyIn) return;
+
+  if (aiSettings?.enableAutoRankIngested) {
+    try {
+      const [result] = await rankCandidates([candidate], requirement);
+      stages.ranked.push({ ...candidate, score: result?.score, rankSummary: result?.summary });
+      await savePipeline(requirement.id, stages);
+      return;
+    } catch (err) {
+      console.error('Auto-rank on Outlook ingestion failed, falling back to Ingested:', err.message);
+    }
+  }
+
   stages.ingested.push(candidate);
-  await savePipeline(requirementId, stages);
+  await savePipeline(requirement.id, stages);
 };
 
 const RESUME_EXT_RE = /\.(pdf|docx?|txt)$/i;
@@ -281,7 +297,7 @@ export const syncOutlookInbox = async (userId) => {
 
         if (bestMatch) {
           try {
-            await injectIntoPipeline(bestMatch.requirement.id, candidate);
+            await injectIntoPipeline(bestMatch.requirement, candidate, aiSettings);
           } catch (e) {
             console.error(`Failed to inject candidate ${candidateId} into pipeline ${bestMatch.requirement.id}:`, e.message);
           }
