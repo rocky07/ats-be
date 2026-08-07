@@ -304,6 +304,7 @@ export const syncOutlookInbox = async (userId) => {
       title: 'Outlook sync complete',
       message: `Imported ${imported} candidate${imported === 1 ? '' : 's'} from ${personalOutlook.outlookEmail} — awaiting review.`,
       meta: { imported, skipped, mailbox: personalOutlook.outlookEmail },
+      userId,
     });
   }
 
