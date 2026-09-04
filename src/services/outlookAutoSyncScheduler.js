@@ -1,7 +1,7 @@
 import { getUserIdsWithOutlookAutoSync } from './settingsService.js';
 import { syncOutlookInbox } from './outlookIngestionService.js';
 
-const DEFAULT_INTERVAL_MINUTES = 5;
+const DEFAULT_INTERVAL_MINUTES = 30;
 
 // Polls connected Outlook mailboxes that opted into auto-sync and ingests any
 // new resume attachments. Not real-time push (that needs a public HTTPS

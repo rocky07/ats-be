@@ -7,3 +7,6 @@ src/config/db.json
 terraform.tfstate
 terraform.tfstate.backup
 *.log
+.env.*
+!.env.example
+*.bak
